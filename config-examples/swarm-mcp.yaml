@@ -1,0 +1,29 @@
+# swarm-mcp.yaml
+#
+# Add the swarm AGI modules as MCP tools in Hermes.
+# Merge these settings into ~/.hermes/config.yaml to enable:
+#   memory_store, memory_get, memory_search, memory_delete, memory_list
+#   dag_add_node, dag_add_edge, dag_execute, dag_validate
+#   reflexion_evaluate, reflexion_run
+#   goal_decompose, goal_next_task, goal_complete, goal_status
+#   blackboard_post, blackboard_read, blackboard_subscribe, ...
+#   codemap_parse_file, codemap_scan_dir, codemap_find_symbol, codemap_repo_map
+#
+# Usage:
+#   # Replace PATH_TO_SWARM with the absolute path to the swarm repo
+#   # e.g. /home/user/projects/claude-swarm
+#
+# Start the server manually to test:
+#   node PATH_TO_SWARM/src/mcp/agi-server.js
+#
+# Then trigger the swarm from Hermes:
+#   "Run the swarm on this repo to implement X"
+
+mcp_servers:
+  swarm-agi:
+    command: node
+    args:
+      - "PATH_TO_SWARM/src/mcp/agi-server.js"
+    description: "AGI modules: memory, blackboard, goals, DAG, reflexion, code-map"
+    # The server communicates over stdio (default for MCP)
+    # No port or network config needed
