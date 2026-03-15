@@ -3761,6 +3761,28 @@ class AIAgent:
                 max_iterations=function_args.get("max_iterations"),
                 parent_agent=self,
             )
+        elif function_name == "reflect":
+            from tools.reflect_tool import reflect as _reflect
+            return _reflect(
+                content=function_args.get("content"),
+                criteria=function_args.get("criteria"),
+                max_rounds=function_args.get("max_rounds", 3),
+                parent_agent=self,
+            )
+        elif function_name == "tdd_pipeline":
+            from tools.tdd_pipeline_tool import tdd_pipeline as _tdd_pipeline
+            return _tdd_pipeline(
+                spec=function_args.get("spec"),
+                max_iterations=function_args.get("max_iterations", 5),
+                parent_agent=self,
+            )
+        elif function_name == "plan_execute":
+            from tools.plan_execute_tool import plan_execute as _plan_execute
+            return _plan_execute(
+                goal=function_args.get("goal"),
+                context=function_args.get("context"),
+                parent_agent=self,
+            )
         else:
             return handle_function_call(
                 function_name, function_args, effective_task_id,
@@ -4083,6 +4105,37 @@ class AIAgent:
                         spinner.stop(cute_msg)
                     elif self.quiet_mode:
                         self._vprint(f"  {cute_msg}")
+            elif function_name == "reflect":
+                from tools.reflect_tool import reflect as _reflect
+                function_result = _reflect(
+                    content=function_args.get("content"),
+                    criteria=function_args.get("criteria"),
+                    max_rounds=function_args.get("max_rounds", 3),
+                    parent_agent=self,
+                )
+                tool_duration = time.time() - tool_start_time
+                if self.quiet_mode:
+                    self._vprint(f"  {_get_cute_tool_message_impl('reflect', function_args, tool_duration, result=function_result)}")
+            elif function_name == "tdd_pipeline":
+                from tools.tdd_pipeline_tool import tdd_pipeline as _tdd_pipeline
+                function_result = _tdd_pipeline(
+                    spec=function_args.get("spec"),
+                    max_iterations=function_args.get("max_iterations", 5),
+                    parent_agent=self,
+                )
+                tool_duration = time.time() - tool_start_time
+                if self.quiet_mode:
+                    self._vprint(f"  {_get_cute_tool_message_impl('tdd_pipeline', function_args, tool_duration, result=function_result)}")
+            elif function_name == "plan_execute":
+                from tools.plan_execute_tool import plan_execute as _plan_execute
+                function_result = _plan_execute(
+                    goal=function_args.get("goal"),
+                    context=function_args.get("context"),
+                    parent_agent=self,
+                )
+                tool_duration = time.time() - tool_start_time
+                if self.quiet_mode:
+                    self._vprint(f"  {_get_cute_tool_message_impl('plan_execute', function_args, tool_duration, result=function_result)}")
             elif self.quiet_mode and self._stream_callback is None:
                 face = random.choice(KawaiiSpinner.KAWAII_WAITING)
                 tool_emoji_map = {
@@ -4100,6 +4153,7 @@ class AIAgent:
                     'cronjob': '⏰',
                     'send_message': '📨', 'todo': '📋', 'memory': '🧠', 'session_search': '🔍',
                     'clarify': '❓', 'execute_code': '🐍', 'delegate_task': '🔀',
+                    'reflect': '🔍', 'tdd_pipeline': '🧪', 'plan_execute': '📐',
                 }
                 emoji = tool_emoji_map.get(function_name, '⚡')
                 preview = _build_tool_preview(function_name, function_args) or function_name

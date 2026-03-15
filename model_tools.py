@@ -96,6 +96,9 @@ def _discover_tools():
         "tools.honcho_tools",
         "tools.homeassistant_tool",
         "tools.agi_tool",
+        "tools.reflect_tool",
+        "tools.tdd_pipeline_tool",
+        "tools.plan_execute_tool",
     ]
     import importlib
     for mod_name in _modules:

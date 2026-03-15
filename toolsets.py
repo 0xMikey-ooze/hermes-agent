@@ -202,6 +202,24 @@ TOOLSETS = {
         "includes": []
     },
 
+    "reflection": {
+        "description": "Self-review content against criteria using a critic loop",
+        "tools": ["reflect"],
+        "includes": []
+    },
+
+    "tdd": {
+        "description": "Spec-first TDD pipeline for red-green-refactor cycles",
+        "tools": ["tdd_pipeline"],
+        "includes": []
+    },
+
+    "plan_execute": {
+        "description": "Architect/coder split for complex tasks requiring planning before coding",
+        "tools": ["plan_execute"],
+        "includes": []
+    },
+
 
     # Scenario-specific toolsets
     
