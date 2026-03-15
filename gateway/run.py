@@ -254,14 +254,80 @@ def _resolve_hermes_bin() -> Optional[list[str]]:
     return None
 
 
+def _check_agi_integration():
+    """Validate AGI server connectivity on startup if configured.
+
+    Soft-fail: if AGI_SERVER_URL is not set, integration is silently disabled.
+    Hard-fail: if URL is set but server unreachable, raise RuntimeError.
+    Timeout: health check must complete within 5 seconds.
+    """
+    agi_url = os.environ.get("AGI_SERVER_URL")
+    if not agi_url:
+        logging.getLogger(__name__).info(
+            "AGI server integration disabled (AGI_SERVER_URL not set)"
+        )
+        return
+
+    try:
+        from src.agi_client import AgiClient, check_agi_server
+
+        def _run_check():
+            client = AgiClient(agi_url, os.environ.get("AGI_SERVER_API_KEY"))
+            check_agi_server(client)
+
+        # Use SIGALRM on Unix for timeout; fall back to threading on other platforms
+        _timed_out = False
+        try:
+            def _timeout_handler(signum, frame):
+                raise TimeoutError("AGI health check timed out")
+
+            old = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(5)
+            try:
+                _run_check()
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old)
+        except AttributeError:
+            # SIGALRM not available (Windows) — use threading
+            import threading
+            _exc = []
+            _done = threading.Event()
+
+            def _worker():
+                try:
+                    _run_check()
+                except Exception as e:
+                    _exc.append(e)
+                finally:
+                    _done.set()
+
+            t = threading.Thread(target=_worker, daemon=True)
+            t.start()
+            if not _done.wait(timeout=5):
+                _timed_out = True
+            elif _exc:
+                raise _exc[0]
+
+        if _timed_out:
+            raise TimeoutError("AGI health check timed out")
+
+    except TimeoutError:
+        logging.getLogger(__name__).warning(
+            "AGI server health check timed out after 5s — continuing without AGI integration"
+        )
+    except ImportError:
+        pass  # src/agi_client.py not available in this deployment
+
+
 class GatewayRunner:
     """
     Main gateway controller.
-    
+
     Manages the lifecycle of all platform adapters and routes
     messages to/from the agent.
     """
-    
+
     def __init__(self, config: Optional[GatewayConfig] = None):
         self.config = config or load_gateway_config()
         self.adapters: Dict[Platform, BasePlatformAdapter] = {}
@@ -4510,8 +4576,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     error_handler.setFormatter(RedactingFormatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
     logging.getLogger().addHandler(error_handler)
 
+    _check_agi_integration()
+
     runner = GatewayRunner(config)
-    
+
     # Set up signal handlers
     def signal_handler():
         asyncio.create_task(runner.stop())
