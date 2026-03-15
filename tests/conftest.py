@@ -6,7 +6,7 @@ import signal
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,6 +14,37 @@ import pytest
 PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# ---------------------------------------------------------------------------
+# Stub optional/unavailable third-party packages so that importing any module
+# under tools/ does not fail in CI where these packages are not installed.
+# tools/__init__.py eagerly imports all tool modules; those in turn pull in
+# firecrawl, openai, httpx, etc.  We pre-populate sys.modules with MagicMock
+# stubs before any test module is collected.
+# ---------------------------------------------------------------------------
+_OPTIONAL_STUBS = [
+    "firecrawl",
+    "openai",
+    "httpx",
+    "aiohttp",
+    "anthropic",
+    "tiktoken",
+    "bs4",
+    "playwright",
+    "playwright.async_api",
+    "fal_client",
+    "honcho",
+    "requests",
+    "requests.exceptions",
+    "yaml",
+    "PIL",
+    "PIL.Image",
+    "cv2",
+    "numpy",
+]
+for _mod in _OPTIONAL_STUBS:
+    if _mod not in sys.modules:
+        sys.modules[_mod] = MagicMock()
 
 
 @pytest.fixture(autouse=True)
