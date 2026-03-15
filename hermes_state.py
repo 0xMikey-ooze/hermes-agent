@@ -115,6 +115,22 @@ class SessionDB:
 
         self._init_schema()
 
+    # -- Context manager / cleanup ------------------------------------------
+
+    def close(self) -> None:
+        """Close the underlying SQLite connection."""
+        if self._conn:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
+    def __enter__(self) -> "SessionDB":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     def _init_schema(self):
         """Create tables and FTS if they don't exist, run migrations."""
         cursor = self._conn.cursor()
@@ -677,8 +693,10 @@ class SessionDB:
 
         try:
             cursor = self._conn.execute(sql, params)
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as e:
             # FTS5 query syntax error despite sanitization — return empty
+            import logging as _logging
+            _logging.getLogger(__name__).debug("FTS5 query failed: %s", e)
             return []
         matches = [dict(row) for row in cursor.fetchall()]
 
@@ -696,7 +714,9 @@ class SessionDB:
                     for r in ctx_cursor.fetchall()
                 ]
                 match["context"] = context_msgs
-            except Exception:
+            except sqlite3.Error as e:
+                import logging as _logging
+                _logging.getLogger(__name__).debug("Context retrieval failed: %s", e)
                 match["context"] = []
 
             # Remove full content from result (snippet is enough, saves tokens)
