@@ -395,6 +395,13 @@ MAX_TASKS = int(os.environ.get("MAX_TASKS_PER_RUN", "10"))
 if tasks_processed >= MAX_TASKS:
     logger.info("MAX_TASKS_PER_RUN (%d) reached — stopping", MAX_TASKS)
     break
+
+# 5. Cost safety — stop before exceeding budget
+from tools.cost_tracker import CostTracker
+cost = CostTracker.from_env()  # reads MAX_COST_PER_RUN_USD env var
+if cost.is_over_budget():
+    logger.warning("Cost budget exceeded: %s", cost.summary())
+    break
 ```
 
 **Result**: Over time, Hermes:
