@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+
+[[services]]
+name = "hermes"
+source = "."
+startCommand = "python run_agent.py --gateway --no-tui"
+
+[services.variables]
+AGI_SERVER_URL = "https://agi-server.railway.internal:3001"
+HERMES_PLATFORM = "telegram"
