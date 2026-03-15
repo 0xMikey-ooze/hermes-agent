@@ -1,0 +1,63 @@
+# Full Hermes + Swarm AGI integration config
+# Copy to ~/.hermes/config.yaml and fill in your values
+
+model: claude-opus-4-6
+max_tokens: 8192
+
+# Environment variables (Hermes injects these into all delegate_task calls)
+env:
+  AGI_SERVER_URL: "${AGI_SERVER_URL}"           # Railway: https://agi-server.railway.app
+  AGI_SERVER_API_KEY: "${AGI_SERVER_API_KEY}"   # Must match API_KEY on agi-server
+  GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+
+# AGI MCP server (for direct tool calls from Hermes)
+mcp_servers:
+  - name: agi
+    type: http
+    url: "${AGI_SERVER_URL}"
+    headers:
+      X-API-Key: "${AGI_SERVER_API_KEY}"
+    tools:
+      - goal_status
+      - goal_decompose
+      - goal_complete
+      - goal_next_task
+      - memory_store
+      - memory_search
+      - blackboard_post
+      - blackboard_get
+      - reflexion_evaluate
+      - worktree_create
+      - worktree_remove
+      - worktree_list
+      - agent_context_build
+      - agent_context_record
+      - goal_discovery_analyze
+
+# Autonomous loop cron
+cron:
+  - name: agentic-loop
+    schedule: "*/15 * * * *"
+    trigger: "Run the agentic swarm loop: check GoalPlanner queue, process next task autonomously."
+    skills: [agentic-swarm]
+
+  - name: github-sync
+    schedule: "*/15 * * * *"
+    trigger: "Sync GitHub issues to GoalPlanner queue."
+    skills: [github-watcher]
+
+  - name: memory-expire
+    schedule: "0 2 * * *"
+    trigger: "Clean up old blackboard entries and expired memory keys."
+
+# Skills directory
+skills_path: "./skills"
+
+# Telegram notifications (alerts on blocked tasks)
+notifications:
+  telegram:
+    chat_id: "${TELEGRAM_CHAT_ID}"
+    on_blocked: true
+    on_pr_opened: true
+    on_queue_empty: false

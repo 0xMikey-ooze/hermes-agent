@@ -108,11 +108,22 @@ memories = {
 }
 ```
 
-### Step 4 — DELEGATE: Spawn Worker Subagents
+### Step 4 — DELEGATE: Provision Isolated Worktrees + Spawn Workers
 
-Batch subtasks into groups of up to 3 and dispatch in parallel:
+Each worker gets an isolated git worktree — no shared filesystem, no git lock races.
+WorktreeManager provisions each worker's directory before the task starts and cleans up after.
 
 ```python
+import os
+import uuid
+from src.agi_client import AgiClient, check_agi_server
+
+# Initialize AGI client (reads AGI_SERVER_URL + AGI_SERVER_API_KEY from env)
+agi = AgiClient.from_env()
+check_agi_server(agi)  # fail fast if not reachable
+
+run_id = str(uuid.uuid4())[:8]
+
 QUALITY_GATES = [
     "Tests exist for every new function",
     "No TODO comments in production code",
@@ -121,36 +132,68 @@ QUALITY_GATES = [
     "Commit message follows conventional commits"
 ]
 
+# Chunk subtasks into worker batches (max 3 parallel)
+BATCH_SIZE = 3
+batches = [plan[i:i+BATCH_SIZE] for i in range(0, len(plan), BATCH_SIZE)]
+
 results = []
-for batch in chunk(plan, size=3):
-    batch_results = delegate_task(tasks=[
-        {
-            "goal": f"Implement: {subtask['description']}",
-            "context": f"""
-TASK ID: {task['id']}
-SUBTASK ID: {subtask['id']}
-PLAN: {json.dumps(plan, indent=2)}
-PRIOR LEARNINGS:
-  Repo patterns: {json.dumps(memories['repoPatterns'], indent=2)}
-  Avoid these failed approaches: {json.dumps(memories['failedApproaches'], indent=2)}
+for batch_idx, batch in enumerate(batches):
+    workers = []
 
-BLACKBOARD TOPIC: swarm/progress/{task['id']}
-Post a blackboard update after each commit:
-  call_tool("blackboard_post", topic="swarm/progress/{task['id']}", message={{ "subtask": "{subtask['id']}", "status": "committed", "commit": "<sha>" }})
+    for i, subtask in enumerate(batch):
+        team_id = f"team-{i+1}"
 
-QUALITY REQUIREMENTS:
-{chr(10).join(f"  - {g}" for g in QUALITY_GATES)}
+        # 1. Provision isolated worktree for this worker
+        try:
+            wt = agi.worktree_create(run_id, team_id, get_current_branch())
+            worktree_path = wt["path"]
+        except Exception as e:
+            agi.blackboard_post("swarm/blockers", {
+                "type": "blocker",
+                "taskId": subtask["id"],
+                "description": f"Failed to create worktree: {e}"
+            })
+            continue
 
-WORKFLOW:
-1. Write tests first (TDD). Run them — they should fail.
-2. Implement until tests pass.
-3. Commit with conventional commit message.
-4. Report summary: files changed, tests added, commit sha.
-"""
-        }
-        for subtask in batch
-    ])
-    results.extend(batch_results)
+        # 2. Post subtask to blackboard so worker can find it
+        agi.blackboard_post(f"swarm/tasks/{run_id}/{team_id}", {
+            "subtask": subtask,
+            "worktreePath": worktree_path,
+            "runId": run_id,
+            "teamId": team_id,
+        })
+
+        # 3. Delegate to worker subagent with worktree path as cwd
+        worker = delegate_task(
+            description=subtask["description"],
+            skill="subagent-driven-development",
+            env={
+                "WORKTREE_PATH": worktree_path,
+                "TASK_ID": subtask["id"],
+                "RUN_ID": run_id,
+                "TEAM_ID": team_id,
+                "AGI_SERVER_URL": os.environ.get("AGI_SERVER_URL", ""),
+                "AGI_SERVER_API_KEY": os.environ.get("AGI_SERVER_API_KEY", ""),
+                "BRANCH_NAME": f"swarm/{run_id}/{team_id}",
+            }
+        )
+        workers.append((team_id, worker, subtask))
+
+    # Wait for all workers in this batch
+    for team_id, worker, subtask in workers:
+        result = worker.wait()
+
+        # Clean up worktree regardless of result
+        agi.worktree_remove(run_id, team_id)
+
+        # Post result to blackboard for monitoring
+        agi.blackboard_post("swarm/results", {
+            "taskId": subtask["id"],
+            "teamId": team_id,
+            "status": "completed" if result.success else "failed",
+            "output": result.output[:500] if result.output else None,
+        })
+        results.append(result)
 ```
 
 ### Step 5 — EVALUATE: ReflexionEvaluator Quality Gate
