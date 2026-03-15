@@ -10,10 +10,13 @@ Features:
   - Deduplicates: does not overwrite existing skills with the same slug
   - Optionally records the new skill with SkillEffectiveness
 """
+import logging
 import re
 import time
 from pathlib import Path
 from typing import Any, List, Optional
+
+logger = logging.getLogger(__name__)
 
 _SCORE_THRESHOLD = 0.8  # minimum score to codify
 
@@ -96,8 +99,28 @@ class AutoSkillCreator:
         )
         (skill_dir / "SKILL.md").write_text(content)
 
+        # Security scan — consistent with hub installs
+        if not self._security_scan(skill_dir):
+            import shutil
+            shutil.rmtree(skill_dir, ignore_errors=True)
+            logger.warning("Auto-skill %s blocked by security scan", slug)
+            return None
+
         # Register with effectiveness tracker if provided
         if self._effectiveness is not None:
             self._effectiveness.record_usage(slug, task, score)
 
         return skill_dir
+
+    def _security_scan(self, skill_dir: Path) -> bool:
+        """Returns True if skill passes security check, False if blocked."""
+        try:
+            from tools.skills_guard import scan_skill, should_allow_install
+            result = scan_skill(skill_dir, source="auto-generated")
+            allowed, _reason = should_allow_install(result, force=False)
+            return allowed
+        except ImportError:
+            return True  # guard unavailable — proceed
+        except Exception as e:
+            logger.warning("Security scan error (proceeding): %s", e)
+            return True
