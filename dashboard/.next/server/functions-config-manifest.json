@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/": {},
+    "/repos": {},
+    "/tasks": {},
+    "/skills": {},
+    "/repos/[owner]/[repo]": {}
+  }
+}

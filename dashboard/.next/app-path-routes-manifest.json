@@ -1,0 +1,8 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/skills/page": "/skills",
+  "/repos/page": "/repos",
+  "/page": "/",
+  "/repos/[owner]/[repo]/page": "/repos/[owner]/[repo]",
+  "/tasks/page": "/tasks"
+}

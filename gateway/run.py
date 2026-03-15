@@ -916,6 +916,20 @@ class GatewayRunner:
         # Start background session expiry watcher for proactive memory flushing
         asyncio.create_task(self._session_expiry_watcher())
 
+        # Start Hermes Web API / Dashboard backend
+        try:
+            from gateway.web_api import HermesWebAPI
+            _agi_client = getattr(self, "agi_client", None)
+            _dashboard_port = int(os.getenv("DASHBOARD_PORT", "3001"))
+            _web_api = HermesWebAPI(
+                agi_client=_agi_client,
+                config=self.config,
+            )
+            asyncio.create_task(_web_api.start(port=_dashboard_port))
+            logger.info("Hermes Web API starting on port %d", _dashboard_port)
+        except Exception as _web_api_err:
+            logger.warning("Hermes Web API failed to start: %s", _web_api_err)
+
         logger.info("Press Ctrl+C to stop")
         
         return True
