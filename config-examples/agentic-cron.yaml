@@ -1,0 +1,17 @@
+cron:
+  - name: "agentic-loop"
+    schedule: "*/15 * * * *"
+    trigger: "Run the agentic swarm loop: check GoalPlanner queue, process next task autonomously using the agentic-swarm skill."
+    platform: "internal"
+    skills: ["agentic-swarm"]
+
+  - name: "github-sync"
+    schedule: "*/15 * * * *"
+    trigger: "Sync GitHub backlog using the github-watcher skill. Add new issues to GoalPlanner."
+    platform: "internal"
+    skills: ["github-watcher"]
+
+  - name: "memory-expire"
+    schedule: "0 2 * * *"
+    trigger: "Run memory maintenance: call memory expire to clean up stale entries older than 7 days."
+    platform: "internal"
