@@ -99,3 +99,27 @@ markers = [
     "integration: marks tests requiring external services (API keys, Modal, etc.)",
 ]
 addopts = "-m 'not integration' -n auto"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+# Start strict on new modules, gradually expand
+[[tool.mypy.overrides]]
+module = [
+    "agent.structured_logging",
+    "gateway.rate_limiter",
+    "gateway.health",
+    "gateway.shutdown",
+]
+disallow_untyped_defs = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # line length handled separately

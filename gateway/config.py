@@ -11,6 +11,7 @@ Handles loading and validating configuration for:
 import logging
 import os
 import json
+import shlex
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
@@ -358,6 +359,8 @@ def load_gateway_config() -> GatewayConfig:
                 if "auto_thread" in discord_cfg and not os.getenv("DISCORD_AUTO_THREAD"):
                     os.environ["DISCORD_AUTO_THREAD"] = str(discord_cfg["auto_thread"]).lower()
     except Exception:
+        # yaml may not be installed, or config.yaml may be malformed/missing.
+        # This is best-effort bridging — gateway.json is the canonical source.
         pass
 
     # Override with environment variables
@@ -525,6 +528,78 @@ def _apply_env_overrides(config: GatewayConfig) -> None:
             config.default_reset_policy.at_hour = int(reset_hour)
         except ValueError:
             pass
+
+
+# Characters that indicate shell metacharacter injection in quick commands.
+_SHELL_METACHARACTERS = frozenset(";|&`$><\n")
+
+
+def sanitize_quick_command(command: str) -> Optional[List[str]]:
+    """Parse a quick command string into a safe argument list.
+
+    Returns a list of arguments suitable for subprocess.run(..., shell=False),
+    or None if the command is empty or contains shell metacharacters.
+    """
+    if not command or not command.strip():
+        return None
+
+    # Reject any command containing shell metacharacters
+    for char in _SHELL_METACHARACTERS:
+        if char in command:
+            logger.warning(
+                "Quick command rejected — contains shell metacharacter %r: %s",
+                char, command[:60],
+            )
+            return None
+
+    try:
+        args = shlex.split(command)
+    except ValueError:
+        logger.warning("Quick command rejected — malformed quoting: %s", command[:60])
+        return None
+
+    if not args:
+        return None
+
+    return args
+
+
+def validate_gateway_config(config: "GatewayConfig") -> List[str]:
+    """Validate a GatewayConfig and return a list of error strings.
+
+    Returns an empty list if the config is valid. Each string describes
+    one validation failure. Callers can decide whether to abort or warn.
+    """
+    errors: List[str] = []
+
+    policy = config.default_reset_policy
+    valid_modes = {"daily", "idle", "both", "none"}
+    if policy.mode not in valid_modes:
+        errors.append(
+            f"Invalid session reset mode '{policy.mode}' "
+            f"(must be one of {sorted(valid_modes)})"
+        )
+    if not (0 <= policy.at_hour <= 23):
+        errors.append(
+            f"Invalid at_hour={policy.at_hour} (must be 0-23)"
+        )
+    if policy.idle_minutes is None or policy.idle_minutes <= 0:
+        errors.append(
+            f"Invalid idle_minutes={policy.idle_minutes} (must be positive)"
+        )
+
+    # Check enabled platforms have required credentials
+    _token_platforms = {Platform.TELEGRAM, Platform.DISCORD, Platform.SLACK}
+    for platform, pconfig in config.platforms.items():
+        if not pconfig.enabled:
+            continue
+        if platform in _token_platforms:
+            if not pconfig.token or not pconfig.token.strip():
+                errors.append(
+                    f"{platform.value} is enabled but has no token configured"
+                )
+
+    return errors
 
 
 def save_gateway_config(config: GatewayConfig) -> None:

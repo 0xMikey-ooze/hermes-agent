@@ -3033,11 +3033,13 @@ class HermesCLI:
                 qcmd = quick_commands[base_cmd.lstrip("/")]
                 if qcmd.get("type") == "exec":
                     import subprocess
+                    from gateway.config import sanitize_quick_command
                     exec_cmd = qcmd.get("command", "")
-                    if exec_cmd:
+                    safe_args = sanitize_quick_command(exec_cmd) if exec_cmd else None
+                    if safe_args:
                         try:
                             result = subprocess.run(
-                                exec_cmd, shell=True, capture_output=True,
+                                safe_args, shell=False, capture_output=True,
                                 text=True, timeout=30
                             )
                             output = result.stdout.strip() or result.stderr.strip()
@@ -3049,6 +3051,8 @@ class HermesCLI:
                             self.console.print("[bold red]Quick command timed out (30s)[/]")
                         except Exception as e:
                             self.console.print(f"[bold red]Quick command error: {e}[/]")
+                    elif exec_cmd and not safe_args:
+                        self.console.print(f"[bold red]Quick command '{base_cmd}' was blocked (unsafe shell characters)[/]")
                     else:
                         self.console.print(f"[bold red]Quick command '{base_cmd}' has no command defined[/]")
                 else:
