@@ -43,11 +43,13 @@ class SkillRecommender:
     Args:
         skills_dir: Path to directory containing installed skill subdirectories.
         hub: Optional hub object with .search(query) -> list and .install(name, url) methods.
+        effectiveness: Optional SkillEffectiveness instance for effectiveness-ranked results.
     """
 
-    def __init__(self, skills_dir: Path, hub: Any = None):
+    def __init__(self, skills_dir: Path, hub: Any = None, effectiveness: Any = None):
         self.skills_dir = Path(skills_dir)
         self.hub = hub
+        self.effectiveness = effectiveness
         self._installed_cache: Optional[Dict[str, Dict]] = None
 
     def _load_installed(self) -> Dict[str, Dict]:
@@ -75,6 +77,7 @@ class SkillRecommender:
         """Search locally installed skills by keyword matching.
 
         Returns list of matching skill dicts, sorted by relevance score descending.
+        Each result includes a 'score' field with the keyword match count.
         """
         query_tokens = _tokenize(query)
         installed = self._load_installed()
@@ -83,10 +86,9 @@ class SkillRecommender:
             text = f"{skill['name']} {skill['description']}"
             score = _score_match(query_tokens, text)
             if score >= min_score:
-                results.append({**skill, "_score": score})
-        results.sort(key=lambda r: r["_score"], reverse=True)
-        # Strip internal score field
-        return [{k: v for k, v in r.items() if k != "_score"} for r in results]
+                results.append({**skill, "score": score})
+        results.sort(key=lambda r: r["score"], reverse=True)
+        return results
 
     def search_github(self, query: str, limit: int = 5) -> List[Dict]:
         """Search the remote hub for skills matching query.
@@ -104,6 +106,10 @@ class SkillRecommender:
         Returns locally installed matching skills (marked installed=True) plus
         remote hub results that are NOT already installed. Already-installed
         skills are filtered out of the remote results to avoid noise.
+
+        When an effectiveness tracker is provided, results are sorted by
+        effectiveness score descending, then keyword match score descending.
+        Unrated skills (0 uses) are sorted after rated skills.
         """
         local_results = self.search(task)
         installed_names = {s["name"] for s in self._load_installed().values()}
@@ -115,7 +121,23 @@ class SkillRecommender:
                 if r["name"] not in installed_names:
                     remote_results.append({**r, "installed": False})
 
-        return local_results + remote_results
+        combined = local_results + remote_results
+
+        if self.effectiveness:
+            # Sort by effectiveness score desc, then keyword score desc.
+            # Unrated skills (uses=0) get avg_score=0.0 and sort after rated skills
+            # by using -1.0 as the sort key so they reliably come last.
+            def _sort_key(r):
+                stats = self.effectiveness.get_stats(r["name"])
+                if stats["uses"] == 0:
+                    eff_score = -1.0
+                else:
+                    eff_score = stats["avg_score"]
+                return (-eff_score, -r.get("score", 0))
+
+            combined.sort(key=_sort_key)
+
+        return combined[:5]
 
     def install(self, name: str, url: str) -> bool:
         """Install a skill from a remote URL via the hub.
