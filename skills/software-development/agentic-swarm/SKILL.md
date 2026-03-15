@@ -356,6 +356,55 @@ This skill is designed to run every 15 minutes via cron:
   skills: ["agentic-swarm"]
 ```
 
+## Self-Improvement Loop (Step 8)
+
+After every task completes, Hermes runs this learning cycle:
+
+```python
+from tools.skill_effectiveness import SkillEffectiveness
+from tools.skill_gap_detector import SkillGapDetector
+from tools.auto_skill_creator import AutoSkillCreator
+
+tracker = SkillEffectiveness()
+gap_detector = SkillGapDetector(recommender=skill_recommender, blackboard_fn=agi.blackboard_post)
+creator = AutoSkillCreator(effectiveness=tracker)
+
+# 1. Record effectiveness of skills used this task
+for skill_name in skills_used_this_task:
+    tracker.record_usage(skill_name, task["description"], evaluation["score"])
+
+# 2. If score is high enough, auto-codify the approach
+if evaluation["score"] >= 0.8:
+    creator.create_skill_from_outcome(
+        task["description"],
+        steps=implementation_summary,
+        score=evaluation["score"],
+    )
+
+# 3. Register outcome with gap detector
+if evaluation["score"] < 0.7:
+    gap = gap_detector.register_failure(task["description"])
+    if gap:
+        # Gaps are posted to blackboard — you can monitor swarm/skill-gaps topic
+        logger.warning("Skill gap detected: %s", gap["gap"])
+else:
+    gap_detector.register_success(task["description"])
+
+# 4. Iteration cap — do not run forever
+MAX_TASKS = int(os.environ.get("MAX_TASKS_PER_RUN", "10"))
+if tasks_processed >= MAX_TASKS:
+    logger.info("MAX_TASKS_PER_RUN (%d) reached — stopping", MAX_TASKS)
+    break
+```
+
+**Result**: Over time, Hermes:
+- Knows which skills produce good results (SkillEffectiveness)
+- Detects when it's weak in a domain (SkillGapDetector)
+- Builds its own skill library from proven solutions (AutoSkillCreator)
+- Never loops infinitely (MAX_TASKS_PER_RUN)
+
+---
+
 ## Helper Functions Reference
 
 These are pseudocode helpers referenced in the protocol above:
