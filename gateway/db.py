@@ -205,3 +205,36 @@ def is_available() -> bool:
     """True if DATABASE_URL is set and connection works."""
     conn = _get_conn()
     return conn is not None
+
+
+# ── Repos ─────────────────────────────────────────────────────────────────────
+
+def repos_list() -> List[Dict]:
+    rows = _exec("SELECT * FROM watched_repos ORDER BY added_at DESC")
+    if rows is None:
+        return []
+    for r in rows:
+        if r.get("added_at"):
+            r["added_at"] = r["added_at"].isoformat()
+    return rows
+
+
+def repo_upsert(repo: Dict) -> bool:
+    sql = """
+        INSERT INTO watched_repos (owner, repo, full_name, private, description, added_at)
+        VALUES (%(owner)s, %(repo)s, %(full_name)s, %(private)s, %(description)s, NOW())
+        ON CONFLICT (full_name) DO UPDATE SET
+            owner=EXCLUDED.owner, repo=EXCLUDED.repo,
+            private=EXCLUDED.private, description=EXCLUDED.description
+    """
+    return _exec(sql, {
+        "owner": repo.get("owner", ""),
+        "repo": repo.get("repo", ""),
+        "full_name": repo.get("full_name", repo.get("repo", "")),
+        "private": repo.get("private", False),
+        "description": repo.get("description", ""),
+    }) is not None
+
+
+def repo_delete(full_name: str) -> bool:
+    return _exec("DELETE FROM watched_repos WHERE full_name=$1", (full_name,)) is not None

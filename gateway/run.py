@@ -267,6 +267,54 @@ def _resolve_hermes_bin() -> Optional[list[str]]:
 
 
 
+def _inject_agent_context():
+    """Inject persistent context into agent system prompt at startup.
+    
+    Writes task queue awareness + mem0 user ID into HERMES_HOME config so agents
+    always know about pending work and use the right memory namespace.
+    """
+    import os
+    from pathlib import Path
+
+    hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+    hermes_home.mkdir(parents=True, exist_ok=True)
+
+    # Set MEM0_USER_ID so all sessions share the same memory namespace
+    if not os.environ.get("MEM0_USER_ID"):
+        os.environ["MEM0_USER_ID"] = "jesse-baptiste"
+    if not os.environ.get("MEM0_AGENT_ID"):
+        os.environ["MEM0_AGENT_ID"] = "hermes"
+
+    # Build system prompt addon that includes task queue awareness
+    try:
+        import yaml
+        config_path = hermes_home / "config.yaml"
+        config = {}
+        if config_path.exists():
+            config = yaml.safe_load(config_path.read_text()) or {}
+
+        task_context = (
+            "\n\n## Task Queue\n"
+            "You have access to a task queue via the dashboard. "
+            "Check /api/tasks to see pending work. When you complete a task, "
+            "call PATCH /api/tasks/{id} with status=done. "
+            "When you start a task, update status=in_progress.\n\n"
+            "## Memory\n"
+            "Use mem0 (via session_search or memory tool) to recall past interactions. "
+            "Proactively search memory for relevant context before answering questions "
+            "about previous work, decisions, or ongoing projects."
+        )
+        existing = config.get("agent", {}).get("system_prompt", "") or ""
+        if "Task Queue" not in existing:
+            if "agent" not in config:
+                config["agent"] = {}
+            config["agent"]["system_prompt"] = (existing + task_context).strip()
+            config_path.write_text(yaml.dump(config, default_flow_style=False))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("Context injection failed: %s", e)
+
+
 def _ensure_mcp_config():
     """Write MCP server config (Context7, etc.) to HERMES_HOME/config.yaml at startup."""
     import os
@@ -4697,6 +4745,7 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
 
     _check_agi_integration()
     try:
+        _inject_agent_context()
         _ensure_mcp_config()
     except Exception:
         pass

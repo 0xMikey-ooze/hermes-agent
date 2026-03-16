@@ -38,11 +38,15 @@ try:
         event_log as db_event_log,
         events_list as db_events_list,
         skill_upsert as db_skill_upsert,
+        repos_list as db_repos_list,
+        repo_upsert as db_repo_upsert,
+        repo_delete as db_repo_delete,
         is_available as db_available,
     )
 except Exception:
     db_tasks_list = db_task_get = db_task_upsert = db_task_update_status = None
     db_task_delete = db_event_log = db_events_list = db_skill_upsert = db_available = None
+    db_repos_list = db_repo_upsert = db_repo_delete = None
 
 _START_TIME = time.time()
 _DASHBOARD_HTML = """<!DOCTYPE html>
@@ -599,6 +603,11 @@ class HermesWebAPI:
         return self._json({"error": message}, status=status)
 
     def _read_repos(self) -> List[Dict]:
+        """Read repos — DB first (persistent), then local JSON."""
+        if db_repos_list and db_available and db_available():
+            rows = db_repos_list()
+            if rows is not None:
+                return rows
         try:
             if self.repos_file.exists():
                 return json.loads(self.repos_file.read_text(encoding="utf-8"))
@@ -607,8 +616,15 @@ class HermesWebAPI:
         return []
 
     def _write_repos(self, repos: List[Dict]) -> None:
-        self.repos_file.parent.mkdir(parents=True, exist_ok=True)
-        self.repos_file.write_text(json.dumps(repos, indent=2), encoding="utf-8")
+        """Write repos — DB primary, local JSON backup."""
+        if db_repo_upsert and db_available and db_available():
+            for r in repos:
+                db_repo_upsert(r)
+        try:
+            self.repos_file.parent.mkdir(parents=True, exist_ok=True)
+            self.repos_file.write_text(json.dumps(repos, indent=2), encoding="utf-8")
+        except OSError:
+            pass
 
     def _read_tasks(self) -> List[Dict]:
         """Read tasks — DB first, fall back to local JSON file."""
@@ -768,18 +784,13 @@ class HermesWebAPI:
     async def _handle_delete_repo(self, request: "web.Request") -> "web.Response":
         owner = request.match_info["owner"]
         repo = request.match_info["repo"]
-
+        full_name = f"{owner}/{repo}"
+        if db_repo_delete and db_available and db_available():
+            db_repo_delete(full_name)
         repos = self._read_repos()
-        new_repos = [
-            r for r in repos
-            if not (r.get("owner") == owner and r.get("repo") == repo)
-        ]
-
-        if len(new_repos) == len(repos):
-            return self._error(f"Repo {owner}/{repo} not found", status=404)
-
+        new_repos = [r for r in repos if not (r.get("owner") == owner and r.get("repo") == repo)]
         self._write_repos(new_repos)
-        return self._json({"deleted": f"{owner}/{repo}"})
+        return self._json({"deleted": full_name})
 
     async def _handle_get_skills(self, request: "web.Request") -> "web.Response":
         skills = []
