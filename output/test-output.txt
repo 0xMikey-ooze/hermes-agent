@@ -1,8 +1,5 @@
-37 passed — all Railway deployment bug tests green
+37 passed — all Railway deployment bug fix tests green
 
-tests/test_port_env_var.py (8 tests) — PASSED
-tests/test_telegram_polling_conflict.py (14 tests) — PASSED
-tests/test_tirith_optional_install.py (15 tests) — PASSED
-
-Run: python3 -m pytest tests/test_port_env_var.py tests/test_telegram_polling_conflict.py tests/test_tirith_optional_install.py -v -o addopts=""
-Result: 37 passed, 31 warnings in 0.18s
+tests/test_port_env_var.py: 8 passed
+tests/test_telegram_polling_conflict.py: 14 passed
+tests/test_tirith_optional_install.py: 15 passed
