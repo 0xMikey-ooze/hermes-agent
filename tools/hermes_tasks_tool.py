@@ -27,9 +27,32 @@ def _db_exec(sql: str, params: tuple = ()) -> Optional[List[Dict]]:
     """Run a query against Neon. Returns list of row dicts or None on error."""
     try:
         from gateway.db import _exec as _raw_exec
-        return _raw_exec(sql, params)
+        result = _raw_exec(sql, params)
+        if result is not None:
+            return result
     except Exception as e:
-        logger.warning("hermes_tasks_tool DB error: %s", e)
+        logger.debug("hermes_tasks_tool direct DB error: %s — trying env fallback", e)
+
+    # Fallback: use psycopg2 directly with DATABASE_URL env var
+    try:
+        import psycopg2
+        import psycopg2.extras
+        db_url = os.environ.get("DATABASE_URL", "")
+        if not db_url:
+            return None
+        conn = psycopg2.connect(db_url)
+        conn.autocommit = True
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # Convert $1/$2 style params to %s for psycopg2
+        import re
+        psql = re.sub(r'\$([0-9]+)', '%s', sql)
+        cur.execute(psql, params or None)
+        rows = [dict(r) for r in cur.fetchall()] if cur.description else []
+        cur.close()
+        conn.close()
+        return rows
+    except Exception as e2:
+        logger.warning("hermes_tasks_tool fallback DB error: %s", e2)
         return None
 
 

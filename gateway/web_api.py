@@ -301,7 +301,7 @@ function nav(el,e){
 }
 
 function fmt(s){if(!s)return '--';if(s<60)return s.toFixed(0)+'s';if(s<3600)return(s/60).toFixed(0)+'m';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
-function timeAgo(iso){const d=new Date(iso+'Z'),s=Math.floor((Date.now()-d)/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function timeAgo(iso){if(!iso)return '';const clean=iso.endsWith('Z')?iso:iso.replace(/\+00:00$/,'Z');const d=new Date(clean),s=Math.floor((Date.now()-d)/1000);if(isNaN(s))return '';if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function ts(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
 async function loadStatus(){
@@ -349,7 +349,7 @@ function renderTasks(){
       <div>
         <div class="t-name">${t.title}</div>
         ${t.description?`<div class="t-info">${t.description}</div>`:''}
-        <div class="t-info" style="margin-top:3px">${t.repo} &middot; ${timeAgo(t.created_at)}</div>
+        <div class="t-info" style="margin-top:3px">${t.repo||'no repo'} &middot; ${timeAgo(t.created_at||t.updated_at)}</div>
         <div class="t-actions">
           ${isA?`<button class="lnk accent" onclick="moveTask('${t.id}','done')">Mark Done</button>`:''}
           ${t.status==='backlog'?`<button class="lnk accent" onclick="moveTask('${t.id}','in_progress')">Start</button>`:''}
