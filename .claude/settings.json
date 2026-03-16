@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "PreToolUse": [{"matcher":"Write|Edit|Create","hooks":[{"type":"command","command":"bash $worktree/.claude/hooks/scope-guard.sh"}]}],
+    "PostToolUse": [{"matcher": "Write|Edit", "hooks": [{"type": "command", "command": "bash /tmp/swarm-local-20260315-232322-26058/team-3/.claude/hooks/no-todos.sh"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "bash /tmp/swarm-local-20260315-232322-26058/team-3/.claude/hooks/final-build-check.sh"}]}]
+  }
+}

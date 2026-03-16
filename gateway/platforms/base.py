@@ -365,7 +365,15 @@ class BasePlatformAdapter(ABC):
 
     @property
     def has_fatal_error(self) -> bool:
-        return self._fatal_error_message is not None
+        return getattr(self, "_fatal_error_message", None) is not None
+
+    @has_fatal_error.setter
+    def has_fatal_error(self, value: bool) -> None:
+        """Allow setting has_fatal_error directly (for testing without __init__)."""
+        if not value:
+            self._fatal_error_message = None
+        elif not getattr(self, "_fatal_error_message", None):
+            self._fatal_error_message = "fatal error"
 
     @property
     def fatal_error_message(self) -> Optional[str]:
@@ -373,11 +381,16 @@ class BasePlatformAdapter(ABC):
 
     @property
     def fatal_error_code(self) -> Optional[str]:
-        return self._fatal_error_code
+        return getattr(self, "_fatal_error_code", None)
+
+    @fatal_error_code.setter
+    def fatal_error_code(self, value: Optional[str]) -> None:
+        """Allow setting fatal_error_code directly (for testing without __init__)."""
+        self._fatal_error_code = value
 
     @property
     def fatal_error_retryable(self) -> bool:
-        return self._fatal_error_retryable
+        return getattr(self, "_fatal_error_retryable", True)
 
     def set_fatal_error_handler(self, handler: Callable[["BasePlatformAdapter"], Awaitable[None] | None]) -> None:
         self._fatal_error_handler = handler
@@ -430,8 +443,13 @@ class BasePlatformAdapter(ABC):
     @property
     def name(self) -> str:
         """Human-readable name for this adapter."""
-        return self.platform.value.title()
-    
+        return getattr(self, "_name", None) or self.platform.value.title()
+
+    @name.setter
+    def name(self, value: str) -> None:
+        """Allow setting name directly (for testing without __init__)."""
+        self._name = value
+
     @property
     def is_connected(self) -> bool:
         """Check if adapter is currently connected."""
