@@ -27,8 +27,30 @@ TOOLSET = "hermes-github"
 _WORKSPACES: Dict[str, str] = {}
 
 
+def _extract_repo(params: dict, kwargs: dict) -> str:
+    """Extract repo from params dict or kwargs — handles all calling conventions."""
+    for d in (params or {}, kwargs or {}):
+        for key in ("repo", "repository", "repo_name", "github_repo", "url"):
+            val = d.get(key, "")
+            if val:
+                import re
+                return re.sub(r'^https?://github\.com/', '', str(val)).strip("/").strip()
+    return ""
+
+
 def _get_token() -> str:
-    return os.environ.get("GITHUB_TOKEN", "")
+    """Get GitHub token from env or fallback config file written at startup."""
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        return token
+    # Try fallback config file written by startup
+    try:
+        cfg = Path("/app/.hermes_github_token")
+        if cfg.exists():
+            return cfg.read_text().strip()
+    except Exception:
+        pass
+    return ""
 
 
 def _workspace(repo: str) -> Optional[str]:
@@ -57,9 +79,11 @@ def github_clone_handler(params: Dict[str, Any] = None, repo: str = "", branch: 
     """Clone a GitHub repo into a temp workspace."""
     import shutil as _shutil
     if params is None: params = {}
-    repo = repo or params.get("repo", "")
+    repo = repo or _extract_repo(params, _)
     branch = branch or params.get("branch", "main")
-    repo = repo.strip().lstrip("https://github.com/").lstrip("/")
+    if not repo:
+        logger.warning("github_clone called with empty repo. params=%s, kwargs=%s", list(params.keys()), list(_.keys()))
+        return f"❌ repo is required (e.g. '0xMikey-ooze/believers-bookshelf-portal-dashboard'). Received params keys={list(params.keys())} kwargs keys={list(_.keys())}"
 
     if not repo:
         return "❌ repo is required (e.g. '0xMikey-ooze/believers-bookshelf-portal-dashboard')"
@@ -108,7 +132,9 @@ def github_clone_handler(params: Dict[str, Any] = None, repo: str = "", branch: 
 def github_ls_handler(params: Dict[str, Any] = None, repo: str = "", path: str = "", **_) -> str:
     """List files in the cloned workspace."""
     if params is None: params = {}
-    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
+    import re as _re
+    repo = (repo or params.get("repo", "") or params.get("repository",""))
+    repo = _re.sub(r'^https?://github\.com/', '', repo).strip("/").strip()
     subpath = (path or params.get("path", "")).strip("/")
 
     ws = _workspace(repo)
@@ -123,8 +149,10 @@ def github_ls_handler(params: Dict[str, Any] = None, repo: str = "", path: str =
 def github_read_handler(params: Dict[str, Any] = None, repo: str = "", file_path: str = "", **_) -> str:
     """Read a file from the workspace."""
     if params is None: params = {}
-    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
-    file_path = (file_path or params.get("file_path", "")).strip("/")
+    import re as _re
+    repo = (repo or params.get("repo", "") or params.get("repository",""))
+    repo = _re.sub(r'^https?://github\.com/', '', repo).strip("/").strip()
+    file_path = (file_path or params.get("file_path", "") or params.get("path","")).strip("/")
 
     if not file_path:
         return "❌ file_path is required"
@@ -146,8 +174,10 @@ def github_read_handler(params: Dict[str, Any] = None, repo: str = "", file_path
 def github_exec_handler(params: Dict[str, Any] = None, repo: str = "", command: str = "", timeout: int = 60, **_) -> str:
     """Run a shell command in the workspace."""
     if params is None: params = {}
-    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
-    cmd = command or params.get("command", "")
+    import re as _re
+    repo = (repo or params.get("repo", "") or params.get("repository",""))
+    repo = _re.sub(r'^https?://github\.com/', '', repo).strip("/").strip()
+    cmd = command or params.get("command", "") or params.get("cmd","")
     cmd = cmd.strip()
     timeout = int(timeout or params.get("timeout", 60))
 
