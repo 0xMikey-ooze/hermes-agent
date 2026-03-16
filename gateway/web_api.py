@@ -1371,16 +1371,21 @@ class HermesWebAPI:
             runner = getattr(_run, "_active_runner", None)
             if runner is not None:
                 desc_part = f"\n\nDescription: {description}" if description and description != title else ""
-                repo_part = f"\n\nRepo: {repo}" if repo else ""
+                repo_clone = (
+                    f"\n\nRepo: {repo}\n"
+                    f"Step 1: Call github_clone(repo='{repo}') to pull the latest code."
+                ) if repo else ""
                 prompt = (
                     f"TASK ASSIGNED [#{task['id']}]: {title}"
-                    f"{repo_part}{desc_part}\n\n"
+                    f"{repo_clone}{desc_part}\n\n"
                     f"Instructions:\n"
                     f"1. Call update_task_status('{task['id']}', 'in_progress') immediately\n"
-                    f"2. Execute the task using available tools (query_db, exec, web tools, etc.)\n"
-                    f"3. Call update_task_status('{task['id']}', 'done') when complete\n"
-                    f"4. Send a Telegram message to chat_id={MIKEY_TG} summarizing what you did\n"
-                    f"5. Call write_reflection() with what you learned\n"
+                    f"2. If repo is set: call github_clone(repo='{repo}') first — never look in /app\n"
+                    f"3. Use github_ls, github_read, github_exec to explore and work in the repo\n"
+                    f"4. Make code changes by writing files then call github_push to commit\n"
+                    f"5. Call update_task_status('{task['id']}', 'done') when complete\n"
+                    f"6. Send a Telegram message to chat_id={MIKEY_TG} summarizing what you did\n"
+                    f"7. Call write_reflection() with what you learned\n"
                     f"If blocked, call update_task_status('{task['id']}', 'blocked') and notify Mikey."
                 )
                 source = SessionSource(

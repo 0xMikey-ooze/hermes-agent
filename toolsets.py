@@ -323,6 +323,10 @@ TOOLSETS = {
         "description": "Self-improvement: write reflections, recall lessons, update soul, commit skills, diagnose gaps",
         "tools": ["write_reflection", "read_reflections", "update_soul", "commit_skill", "self_diagnose"],
     },
+    "hermes-github": {
+        "description": "GitHub work tools — clone repos, read/edit files, run commands, push changes",
+        "tools": ["github_clone", "github_ls", "github_read", "github_exec", "github_push"],
+    },
 }
 
 
