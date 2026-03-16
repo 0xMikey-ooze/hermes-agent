@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
-# Hermes Agent ⚕
+# Hermes Agent ⚕ — 0xMikey Fork
 
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
@@ -10,6 +10,10 @@
   <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
   <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
 </p>
+
+> **This is a fork of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)** with production hardening, a self-improving skill loop, cost tracking, and a built-in web dashboard. See [What's Different in This Fork](#whats-different-in-this-fork) for what's been added.
+
+---
 
 **The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
@@ -114,6 +118,140 @@ What gets imported:
 - **Workspace instructions** — AGENTS.md (with `--workspace-target`)
 
 See `hermes claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
+
+---
+
+## What's Different in This Fork
+
+This fork extends upstream Hermes with the following additions:
+
+### Self-Improving Skill Loop
+A full 8-step autonomous skill improvement pipeline built into the agent:
+
+| Component | Purpose |
+|-----------|---------|
+| `SkillRecommender` | Discovers relevant skills at runtime via effectiveness ranking |
+| `SkillGapDetector` | Identifies when the agent lacks a skill for a task and flags it |
+| `SkillEffectiveness` | Tracks skill usage success/failure with time-decay scoring |
+| `AutoSkillCreator` | Codifies successful approaches as reusable skills after complex tasks |
+| `MemoryBridge` | Unified memory search across native store and AGI MemoryStore fallback |
+
+### CostTracker & Budget Caps
+Per-run spend tracking with hard budget limits. Set `MAX_RUN_COST_USD` in your `.env` to prevent runaway API spend.
+
+### Metrics, Tracing & Retry Policy
+- Structured logging with `structlog`
+- OpenTelemetry-compatible tracing in `agent/tracing.py`
+- Configurable retry policy with exponential backoff in `agent/retry_policy.py`
+- Per-run metrics collected in `agent/metrics.py`
+
+### Web Dashboard
+A Next.js dashboard for monitoring agent runs, cost, and trajectory history.
+
+```bash
+cd dashboard
+npm install
+npm run dev        # http://localhost:3000
+```
+
+The dashboard reads from the Hermes web API (see below). Set `HERMES_API_URL` in `dashboard/.env.local` if your API is not on `localhost:8000`.
+
+### Hermes Web API
+A FastAPI server exposing agent state, run history, and cost data:
+
+```bash
+python run_agent.py --api      # starts API on :8000
+```
+
+Endpoints: `GET /runs`, `GET /runs/{id}`, `GET /cost`, `GET /skills`, `GET /health`
+
+### AGI Server Integration (Swarm Mode)
+The `start.sh` script launches Hermes in swarm mode, connected to an external AGI server over HTTP. This enables multi-agent coordination via the AGI MemoryStore and tool registry.
+
+---
+
+## Fork Setup
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/0xMikey-ooze/hermes-agent.git
+cd hermes-agent
+git submodule update --init mini-swe-agent
+./setup-hermes.sh
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env    # or cli-config.yaml.example → cli-config.yaml
+```
+
+Key variables for fork-specific features:
+
+```env
+# Required for all runs
+ANTHROPIC_API_KEY=sk-ant-...       # or OPENROUTER_API_KEY / OPENAI_API_KEY
+
+# Cost tracking (optional — defaults to no cap)
+MAX_RUN_COST_USD=1.00
+
+# Swarm / AGI server (optional — only needed for start.sh / swarm mode)
+AGI_SERVER_URL=http://localhost:3001
+
+# Dashboard (optional)
+HERMES_API_URL=http://localhost:8000
+```
+
+### 3. Run normally
+
+```bash
+source .venv/bin/activate
+python cli.py                    # interactive TUI
+python cli.py --gateway          # messaging gateway (Telegram/Discord/etc.)
+```
+
+### 4. Run in swarm mode (AGI server required)
+
+```bash
+# Terminal 1 — start AGI server
+node /path/to/swarm/src/mcp/agi-server-http.js
+
+# Terminal 2 — start Hermes
+AGI_SERVER_URL=http://localhost:3001 ./start.sh
+```
+
+`start.sh` validates all dependencies before launching and will exit with a clear error if the AGI server is unreachable.
+
+### 5. Dashboard (optional)
+
+```bash
+cd dashboard
+npm install
+echo "HERMES_API_URL=http://localhost:8000" > .env.local
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### 6. Run tests
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -q                          # all tests
+python -m pytest tests/ -q -k "cost"               # cost tracker only
+python -m pytest tests/ -q -k "skill"              # skill loop only
+```
+
+### Syncing with upstream
+
+```bash
+git remote add upstream https://github.com/NousResearch/hermes-agent.git
+git fetch upstream
+git merge upstream/main
+```
+
+Fork-specific files are isolated enough that merges are generally clean. If conflicts arise they'll be in `agent/`, `hermes_cli/`, or `run_agent.py`.
 
 ---
 
