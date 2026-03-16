@@ -41,3 +41,5 @@ aiohttp>=3.9.0
 
 # mem0 — intelligent memory layer (+26% accuracy over OpenAI Memory)
 mem0ai
+
+exa-py

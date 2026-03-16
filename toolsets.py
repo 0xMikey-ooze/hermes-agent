@@ -30,7 +30,7 @@ from typing import List, Dict, Any, Set, Optional
 # Edit this once to update all platforms simultaneously.
 _HERMES_CORE_TOOLS = [
     # Web
-    "web_search", "web_extract",
+    "web_search", "web_extract", "exa_search",
     # Terminal + process management
     "terminal", "process",
     # File manipulation

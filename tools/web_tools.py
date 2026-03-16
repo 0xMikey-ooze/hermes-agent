@@ -1269,3 +1269,109 @@ registry.register(
     requires_env=["FIRECRAWL_API_KEY"],
     is_async=True,
 )
+
+
+# ── Exa Search ────────────────────────────────────────────────────────────────
+
+def exa_search_tool(
+    query: str,
+    num_results: int = 5,
+    use_autoprompt: bool = True,
+    type: str = "auto",
+    include_domains: list = None,
+    contents: bool = False,
+) -> str:
+    """
+    Search the web using Exa AI — returns semantically relevant results.
+    Better than keyword search for research, code, and technical queries.
+
+    Args:
+        query: The search query.
+        num_results: Number of results (default 5, max 20).
+        use_autoprompt: Let Exa rewrite query for better results (default True).
+        type: "auto" | "neural" | "keyword" (default "auto").
+        include_domains: Optional list of domains to restrict search to.
+        contents: If True, fetch full page text for top results.
+    """
+    api_key = os.getenv("EXA_API_KEY", "")
+    if not api_key:
+        return json.dumps({"success": False, "error": "EXA_API_KEY not set"})
+    try:
+        from exa_py import Exa  # type: ignore
+        client = Exa(api_key=api_key)
+        kwargs = dict(
+            num_results=min(num_results, 20),
+            use_autoprompt=use_autoprompt,
+            type=type,
+        )
+        if include_domains:
+            kwargs["include_domains"] = include_domains
+
+        if contents:
+            results = client.search_and_contents(query, text=True, **kwargs)
+        else:
+            results = client.search(query, **kwargs)
+
+        out = []
+        for r in results.results:
+            item = {
+                "title": getattr(r, "title", ""),
+                "url": getattr(r, "url", ""),
+                "published_date": getattr(r, "published_date", ""),
+                "score": getattr(r, "score", None),
+            }
+            if contents and hasattr(r, "text"):
+                item["text"] = (r.text or "")[:2000]
+            out.append(item)
+
+        return json.dumps({"success": True, "results": out, "count": len(out)})
+    except ImportError:
+        return json.dumps({"success": False, "error": "exa-py not installed. Run: pip install exa-py"})
+    except Exception as exc:
+        return json.dumps({"success": False, "error": str(exc)})
+
+
+def check_exa_requirements() -> bool:
+    try:
+        import exa_py  # noqa
+        return bool(os.getenv("EXA_API_KEY"))
+    except ImportError:
+        return False
+
+
+
+# ── Register Exa search tool ──────────────────────────────────────────────────
+
+EXA_SEARCH_SCHEMA = {
+    "name": "exa_search",
+    "description": (
+        "Search the web using Exa AI — semantic neural search, significantly better than "
+        "keyword search for research, technical documentation, code examples, and recent "
+        "events. Returns titles, URLs, publish dates, and relevance scores. "
+        "Use this instead of web_search for research-heavy or ambiguous queries."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "The search query"},
+            "num_results": {"type": "integer", "description": "Number of results (default 5, max 20)", "default": 5},
+            "type": {"type": "string", "enum": ["auto", "neural", "keyword"], "default": "auto"},
+            "contents": {"type": "boolean", "description": "Fetch full page text for top results", "default": False}
+        },
+        "required": ["query"]
+    }
+}
+
+registry.register(
+    name="exa_search",
+    toolset="web",
+    schema=EXA_SEARCH_SCHEMA,
+    handler=lambda args, **kw: exa_search_tool(
+        args.get("query", ""),
+        num_results=args.get("num_results", 5),
+        type=args.get("type", "auto"),
+        contents=args.get("contents", False),
+    ),
+    check_fn=check_exa_requirements,
+    requires_env=["EXA_API_KEY"],
+)

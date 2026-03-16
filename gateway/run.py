@@ -266,6 +266,45 @@ def _resolve_hermes_bin() -> Optional[list[str]]:
     return None
 
 
+
+def _ensure_mcp_config():
+    """Write MCP server config (Context7, etc.) to HERMES_HOME/config.yaml at startup."""
+    import os
+    import yaml  # type: ignore
+    from pathlib import Path
+
+    hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+    hermes_home.mkdir(parents=True, exist_ok=True)
+    config_path = hermes_home / "config.yaml"
+
+    # Load existing config or start fresh
+    config = {}
+    if config_path.exists():
+        try:
+            config = yaml.safe_load(config_path.read_text()) or {}
+        except Exception:
+            config = {}
+
+    mcp_servers = config.get("mcp_servers", {})
+    changed = False
+
+    # Context7 — free MCP server for up-to-date library documentation
+    if "context7" not in mcp_servers:
+        mcp_servers["context7"] = {
+            "url": "https://mcp.context7.com/mcp",
+            "timeout": 60,
+        }
+        changed = True
+
+    if changed:
+        config["mcp_servers"] = mcp_servers
+        try:
+            config_path.write_text(yaml.dump(config, default_flow_style=False))
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Could not write MCP config: %s", e)
+
+
 def _check_agi_integration():
     """Validate AGI server connectivity on startup if configured.
 
@@ -4653,6 +4692,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     logging.getLogger().addHandler(error_handler)
 
     _check_agi_integration()
+    try:
+        _ensure_mcp_config()
+    except Exception:
+        pass
 
     runner = GatewayRunner(config)
 

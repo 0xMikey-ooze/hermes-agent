@@ -20,7 +20,9 @@ from .web_tools import (
     web_search_tool,
     web_extract_tool,
     web_crawl_tool,
-    check_firecrawl_api_key
+    check_firecrawl_api_key,
+    exa_search_tool,
+    check_exa_requirements
 )
 
 # Primary terminal tool (mini-swe-agent backend: local/docker/singularity/modal/daytona)
@@ -166,6 +168,8 @@ __all__ = [
     'web_extract_tool',
     'web_crawl_tool',
     'check_firecrawl_api_key',
+    'exa_search_tool',
+    'check_exa_requirements',
     # Terminal tools (mini-swe-agent backend)
     'terminal_tool',
     'check_terminal_requirements',
