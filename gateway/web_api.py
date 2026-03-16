@@ -945,59 +945,70 @@ class HermesWebAPI:
         return self._json({"events": events})
 
 
-    async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
-        """Return the contents of SOUL.md (agent personality file)."""
+    def _soul_path(self) -> "Path":
+        """Canonical writable path for SOUL.md — always HERMES_HOME."""
         hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
-        # Try multiple locations
-        candidates = [
-            hermes_home / "SOUL.md",
-            Path(__file__).parent.parent / "SOUL.md",
-            Path("/app/SOUL.md"),
-        ]
-        for p in candidates:
-            if p.exists():
-                return self._json({"path": str(p), "content": p.read_text(encoding="utf-8")})
-        return self._json({"path": str(candidates[0]), "content": ""})
+        hermes_home.mkdir(parents=True, exist_ok=True)
+        return hermes_home / "SOUL.md"
+
+    async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
+        """Return SOUL.md — prefer HERMES_HOME, fall back to /app."""
+        target = self._soul_path()
+        if target.exists():
+            return self._json({"path": str(target), "content": target.read_text(encoding="utf-8")})
+        # Fallback: read from image copy if HERMES_HOME copy doesn't exist yet
+        fallback = Path(__file__).parent.parent / "SOUL.md"
+        if fallback.exists():
+            return self._json({"path": str(target), "content": fallback.read_text(encoding="utf-8")})
+        return self._json({"path": str(target), "content": ""})
 
     async def _handle_put_soul(self, request: "web.Request") -> "web.Response":
-        """Write SOUL.md content."""
+        """Write SOUL.md to HERMES_HOME (always writable)."""
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
+        target = self._soul_path()
+        try:
+            target.write_text(content_text, encoding="utf-8")
+            return self._json({"saved": str(target), "ok": True})
+        except OSError as exc:
+            return self._error(f"Write failed: {exc}", status=500)
+
+    def _skill_overlay_path(self, name: str) -> "Path":
+        """Writable overlay path for skill files in HERMES_HOME."""
         hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
-        candidates = [
-            Path(__file__).parent.parent / "SOUL.md",
-            Path("/app/SOUL.md"),
-            hermes_home / "SOUL.md",
-        ]
-        target = next((p for p in candidates if p.parent.exists()), candidates[-1])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content_text, encoding="utf-8")
-        return self._json({"saved": str(target)})
+        p = hermes_home / "skills" / name
+        p.mkdir(parents=True, exist_ok=True)
+        return p / "SKILL.md"
 
     async def _handle_get_skill_file(self, request: "web.Request") -> "web.Response":
-        """Return SKILL.md content for a named skill."""
+        """Return SKILL.md — prefer HERMES_HOME overlay, fall back to image."""
         name = request.match_info["name"]
-        skill_dir = self.skills_path / name
-        skill_md = skill_dir / "SKILL.md"
+        overlay = self._skill_overlay_path(name)
+        if overlay.exists():
+            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8")})
+        # Fallback to image copy
+        skill_md = self.skills_path / name / "SKILL.md"
         if not skill_md.exists():
             return self._error(f"Skill '{name}' not found", status=404)
         return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8")})
 
     async def _handle_put_skill_file(self, request: "web.Request") -> "web.Response":
-        """Write SKILL.md content for a named skill."""
+        """Write SKILL.md to HERMES_HOME overlay (always writable)."""
         name = request.match_info["name"]
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
-        skill_dir = self.skills_path / name
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        (skill_dir / "SKILL.md").write_text(content_text, encoding="utf-8")
-        return self._json({"saved": str(skill_dir / "SKILL.md")})
+        target = self._skill_overlay_path(name)
+        try:
+            target.write_text(content_text, encoding="utf-8")
+            return self._json({"saved": str(target), "ok": True})
+        except OSError as exc:
+            return self._error(f"Write failed: {exc}", status=500)
 
     async def _handle_github_repos(self, request: "web.Request") -> "web.Response":
         """Fetch all repos accessible via GITHUB_TOKEN."""
@@ -1163,59 +1174,70 @@ class HermesWebAPI:
         return self._json({"events": events})
 
 
-    async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
-        """Return the contents of SOUL.md (agent personality file)."""
+    def _soul_path(self) -> "Path":
+        """Canonical writable path for SOUL.md — always HERMES_HOME."""
         hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
-        # Try multiple locations
-        candidates = [
-            hermes_home / "SOUL.md",
-            Path(__file__).parent.parent / "SOUL.md",
-            Path("/app/SOUL.md"),
-        ]
-        for p in candidates:
-            if p.exists():
-                return self._json({"path": str(p), "content": p.read_text(encoding="utf-8")})
-        return self._json({"path": str(candidates[0]), "content": ""})
+        hermes_home.mkdir(parents=True, exist_ok=True)
+        return hermes_home / "SOUL.md"
+
+    async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
+        """Return SOUL.md — prefer HERMES_HOME, fall back to /app."""
+        target = self._soul_path()
+        if target.exists():
+            return self._json({"path": str(target), "content": target.read_text(encoding="utf-8")})
+        # Fallback: read from image copy if HERMES_HOME copy doesn't exist yet
+        fallback = Path(__file__).parent.parent / "SOUL.md"
+        if fallback.exists():
+            return self._json({"path": str(target), "content": fallback.read_text(encoding="utf-8")})
+        return self._json({"path": str(target), "content": ""})
 
     async def _handle_put_soul(self, request: "web.Request") -> "web.Response":
-        """Write SOUL.md content."""
+        """Write SOUL.md to HERMES_HOME (always writable)."""
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
+        target = self._soul_path()
+        try:
+            target.write_text(content_text, encoding="utf-8")
+            return self._json({"saved": str(target), "ok": True})
+        except OSError as exc:
+            return self._error(f"Write failed: {exc}", status=500)
+
+    def _skill_overlay_path(self, name: str) -> "Path":
+        """Writable overlay path for skill files in HERMES_HOME."""
         hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
-        candidates = [
-            Path(__file__).parent.parent / "SOUL.md",
-            Path("/app/SOUL.md"),
-            hermes_home / "SOUL.md",
-        ]
-        target = next((p for p in candidates if p.parent.exists()), candidates[-1])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content_text, encoding="utf-8")
-        return self._json({"saved": str(target)})
+        p = hermes_home / "skills" / name
+        p.mkdir(parents=True, exist_ok=True)
+        return p / "SKILL.md"
 
     async def _handle_get_skill_file(self, request: "web.Request") -> "web.Response":
-        """Return SKILL.md content for a named skill."""
+        """Return SKILL.md — prefer HERMES_HOME overlay, fall back to image."""
         name = request.match_info["name"]
-        skill_dir = self.skills_path / name
-        skill_md = skill_dir / "SKILL.md"
+        overlay = self._skill_overlay_path(name)
+        if overlay.exists():
+            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8")})
+        # Fallback to image copy
+        skill_md = self.skills_path / name / "SKILL.md"
         if not skill_md.exists():
             return self._error(f"Skill '{name}' not found", status=404)
         return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8")})
 
     async def _handle_put_skill_file(self, request: "web.Request") -> "web.Response":
-        """Write SKILL.md content for a named skill."""
+        """Write SKILL.md to HERMES_HOME overlay (always writable)."""
         name = request.match_info["name"]
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
-        skill_dir = self.skills_path / name
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        (skill_dir / "SKILL.md").write_text(content_text, encoding="utf-8")
-        return self._json({"saved": str(skill_dir / "SKILL.md")})
+        target = self._skill_overlay_path(name)
+        try:
+            target.write_text(content_text, encoding="utf-8")
+            return self._json({"saved": str(target), "ok": True})
+        except OSError as exc:
+            return self._error(f"Write failed: {exc}", status=500)
 
     async def _handle_github_repos(self, request: "web.Request") -> "web.Response":
         """Fetch all repos accessible via GITHUB_TOKEN."""
