@@ -213,6 +213,14 @@ textarea.code-editor{flex:1;background:var(--bg);border:none;color:var(--text);f
         <button class="lnk" onclick="loadRepos()">↻ Refresh</button>
       </div>
     </div>
+    <!-- Skill import bar -->
+    <div style="display:flex;gap:8px;padding:12px 0 4px 0;border-top:1px solid #222;margin-top:12px">
+      <div style="font-size:10px;color:#888;letter-spacing:.08em;text-transform:uppercase;padding-top:8px;white-space:nowrap">Import Skill:</div>
+      <input id="skill-import-url" type="text" placeholder="GitHub URL or clawhub slug..."
+        style="flex:1;background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:6px 10px;font-size:11px;font-family:inherit;">
+      <button class="lnk main" onclick="importSkill()">↓ IMPORT</button>
+    </div>
+    <div id="import-status" style="font-size:11px;min-height:14px;padding-bottom:8px;"></div>
     <div class="input-row">
       <input id="r-owner" placeholder="Owner" style="max-width:140px"/>
       <input id="r-repo" placeholder="Repo name"/>
@@ -367,6 +375,25 @@ function populateRepoDropdown(){
   sel.value=cur;
 }
 
+async function importSkill() {
+  const src = document.getElementById('skill-import-url').value.trim();
+  const el = document.getElementById('import-status');
+  if (!src) { el.textContent = 'Enter a GitHub URL or clawhub slug first.'; el.style.color='#f88'; return; }
+  el.style.color = '#888';
+  el.textContent = 'Importing...';
+  try {
+    const r = await fetch('/api/skills/import', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:src})});
+    const d = await r.json();
+    if (d.ok) {
+      el.style.color = '#4caf50';
+      el.textContent = '\u2713 Skill "' + d.skill + '" installed — ' + d.bytes + ' bytes.';
+      document.getElementById('skill-import-url').value = '';
+    } else {
+      el.style.color = '#f44336';
+      el.textContent = '\u2717 ' + (d.error || 'Import failed');
+    }
+  } catch(e) { el.style.color='#f44'; el.textContent='Network error: ' + e.message; }
+}
 async function syncGitHub(){
   const btn=document.querySelector('[onclick="syncGitHub()"]');
   btn.textContent='Fetching...';
@@ -832,6 +859,85 @@ class HermesWebAPI:
 
     # ── App factory ───────────────────────────────────────────────────────
 
+
+
+    async def _handle_github_sync(self, request: "web.Request") -> "web.Response":
+        """Pull latest hermes-agent repo and restart. Called after a git push."""
+        import subprocess, asyncio
+        repo_dir = Path(__file__).parent.parent
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    ["git", "-C", str(repo_dir), "pull", "--rebase", "--autostash"],
+                    capture_output=True, text=True, timeout=30
+                )
+            )
+            out = result.stdout + result.stderr
+            return self._json({"ok": result.returncode == 0, "output": out.strip()})
+        except Exception as exc:
+            return self._error(str(exc), status=500)
+
+    async def _handle_skill_import(self, request: "web.Request") -> "web.Response":
+        """Import a skill from a GitHub URL, raw URL, or skills.sh slug.
+
+        Body: { "source": "<url-or-slug>" }
+        Examples:
+          - "https://github.com/owner/repo/tree/main/skills/my-skill"
+          - "https://raw.githubusercontent.com/.../SKILL.md"
+          - "my-skill-name"  (looks up clawhub.com)
+        """
+        import urllib.request as _ureq
+        try:
+            body = await request.json()
+        except Exception:
+            return self._error("Invalid JSON")
+        source = (body.get("source") or "").strip()
+        if not source:
+            return self._error("source is required")
+
+        # Normalize to a raw SKILL.md URL
+        raw_url = None
+        skill_name = None
+
+        if source.startswith("https://raw.githubusercontent.com"):
+            raw_url = source
+            skill_name = source.rstrip("/").split("/")[-2]
+        elif source.startswith("https://github.com"):
+            # Convert github.com tree URL → raw.githubusercontent.com
+            raw_url = source.replace("https://github.com", "https://raw.githubusercontent.com")
+            raw_url = raw_url.replace("/tree/", "/")
+            if not raw_url.endswith("SKILL.md"):
+                raw_url = raw_url.rstrip("/") + "/SKILL.md"
+            skill_name = source.rstrip("/").split("/")[-1]
+        else:
+            # Treat as slug — try clawhub.com skills API
+            skill_name = source
+            raw_url = f"https://clawhub.com/api/skills/{source}/SKILL.md"
+
+        # Fetch the SKILL.md
+        try:
+            req = _ureq.Request(raw_url, headers={"User-Agent": "hermes-agent"})
+            token = os.environ.get("GITHUB_TOKEN", "")
+            if token and "github" in raw_url:
+                req.add_header("Authorization", f"token {token}")
+            with _ureq.urlopen(req, timeout=10) as resp:
+                skill_content = resp.read().decode("utf-8")
+        except Exception as exc:
+            return self._error(f"Could not fetch skill from {raw_url}: {exc}", status=502)
+
+        if not skill_content.strip():
+            return self._error("Fetched empty SKILL.md", status=502)
+
+        # Write to HERMES_HOME/skills/<name>/SKILL.md
+        hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+        skill_dir = hermes_home / "skills" / skill_name
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+
+        return self._json({"ok": True, "skill": skill_name, "path": str(skill_dir / "SKILL.md"),
+                           "bytes": len(skill_content)})
+
     def create_app(self) -> "web.Application":
         """Create and return the aiohttp Application."""
         if web is None:  # pragma: no cover
@@ -871,6 +977,8 @@ class HermesWebAPI:
 
         # GitHub repo discovery
         app.router.add_get("/api/github/repos", self._handle_github_repos)
+        app.router.add_post("/api/github/sync", self._handle_github_sync)
+        app.router.add_post("/api/skills/import", self._handle_skill_import)
         app.router.add_options("/api/github/repos", self._handle_options)
 
         app.router.add_get("/api/status", self._handle_status)
@@ -956,30 +1064,97 @@ class HermesWebAPI:
         hermes_home.mkdir(parents=True, exist_ok=True)
         return hermes_home / "SOUL.md"
 
+    def _github_soul_path(self):
+        """Return (owner, repo, branch, path) for SOUL.md in GitHub, or None."""
+        token = os.environ.get("GITHUB_TOKEN", "")
+        repo = os.environ.get("HERMES_GITHUB_REPO", "")  # e.g. "0xMikey-ooze/hermes-agent"
+        if not token or not repo:
+            return None
+        branch = os.environ.get("HERMES_GITHUB_BRANCH", "main")
+        return token, repo, branch, "SOUL.md"
+
+    def _github_get_file(self, token, repo, path, branch="main"):
+        """Fetch a file from GitHub. Returns (content_str, sha) or (None, None)."""
+        import urllib.request, base64
+        url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+                return base64.b64decode(data["content"]).decode("utf-8"), data["sha"]
+        except Exception:
+            return None, None
+
+    def _github_put_file(self, token, repo, path, content, sha, branch="main", message=None):
+        """Commit a file to GitHub. Returns True on success."""
+        import urllib.request, base64
+        url = f"https://api.github.com/repos/{repo}/contents/{path}"
+        body = {
+            "message": message or f"chore: update {path} via dashboard",
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+            "branch": branch,
+        }
+        if sha:
+            body["sha"] = sha
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="PUT", headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status in (200, 201)
+        except Exception:
+            return False
+
     async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
-        """Return SOUL.md — prefer HERMES_HOME, fall back to /app."""
+        """Return SOUL.md — try GitHub first (persistent), then HERMES_HOME, then /app."""
+        gh = self._github_soul_path()
+        if gh:
+            token, repo, branch, path = gh
+            gh_content, sha = self._github_get_file(token, repo, path, branch)
+            if gh_content is not None:
+                # Cache locally so it survives a GitHub hiccup
+                self._soul_path().write_text(gh_content, encoding="utf-8")
+                return self._json({"path": f"github:{repo}/{path}", "content": gh_content, "sha": sha})
+        # Fall through to local
         target = self._soul_path()
         if target.exists():
             return self._json({"path": str(target), "content": target.read_text(encoding="utf-8")})
-        # Fallback: read from image copy if HERMES_HOME copy doesn't exist yet
         fallback = Path(__file__).parent.parent / "SOUL.md"
         if fallback.exists():
             return self._json({"path": str(target), "content": fallback.read_text(encoding="utf-8")})
         return self._json({"path": str(target), "content": ""})
 
     async def _handle_put_soul(self, request: "web.Request") -> "web.Response":
-        """Write SOUL.md to HERMES_HOME (always writable)."""
+        """Write SOUL.md — save locally AND commit to GitHub for persistence."""
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
+        sha = body.get("sha")  # sha from last GET — required for GitHub update
+        # Always write locally first (fast path)
         target = self._soul_path()
         try:
             target.write_text(content_text, encoding="utf-8")
-            return self._json({"saved": str(target), "ok": True})
         except OSError as exc:
-            return self._error(f"Write failed: {exc}", status=500)
+            return self._error(f"Local write failed: {exc}", status=500)
+        # Commit to GitHub for true persistence
+        gh = self._github_soul_path()
+        if gh:
+            token, repo, branch, path = gh
+            if not sha:
+                _, sha = self._github_get_file(token, repo, path, branch)
+            ok = self._github_put_file(token, repo, path, content_text, sha, branch,
+                                       message="chore: update SOUL.md via dashboard")
+            return self._json({"saved": f"github:{repo}/{path}", "ok": True, "github": ok})
+        return self._json({"saved": str(target), "ok": True, "github": False,
+                           "note": "Set HERMES_GITHUB_REPO env var to persist across deploys"})
 
     def _skill_overlay_path(self, name: str) -> "Path":
         """Writable overlay path for skill files in HERMES_HOME."""
@@ -1183,30 +1358,97 @@ class HermesWebAPI:
         hermes_home.mkdir(parents=True, exist_ok=True)
         return hermes_home / "SOUL.md"
 
+    def _github_soul_path(self):
+        """Return (owner, repo, branch, path) for SOUL.md in GitHub, or None."""
+        token = os.environ.get("GITHUB_TOKEN", "")
+        repo = os.environ.get("HERMES_GITHUB_REPO", "")  # e.g. "0xMikey-ooze/hermes-agent"
+        if not token or not repo:
+            return None
+        branch = os.environ.get("HERMES_GITHUB_BRANCH", "main")
+        return token, repo, branch, "SOUL.md"
+
+    def _github_get_file(self, token, repo, path, branch="main"):
+        """Fetch a file from GitHub. Returns (content_str, sha) or (None, None)."""
+        import urllib.request, base64
+        url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+                return base64.b64decode(data["content"]).decode("utf-8"), data["sha"]
+        except Exception:
+            return None, None
+
+    def _github_put_file(self, token, repo, path, content, sha, branch="main", message=None):
+        """Commit a file to GitHub. Returns True on success."""
+        import urllib.request, base64
+        url = f"https://api.github.com/repos/{repo}/contents/{path}"
+        body = {
+            "message": message or f"chore: update {path} via dashboard",
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+            "branch": branch,
+        }
+        if sha:
+            body["sha"] = sha
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="PUT", headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status in (200, 201)
+        except Exception:
+            return False
+
     async def _handle_get_soul(self, request: "web.Request") -> "web.Response":
-        """Return SOUL.md — prefer HERMES_HOME, fall back to /app."""
+        """Return SOUL.md — try GitHub first (persistent), then HERMES_HOME, then /app."""
+        gh = self._github_soul_path()
+        if gh:
+            token, repo, branch, path = gh
+            gh_content, sha = self._github_get_file(token, repo, path, branch)
+            if gh_content is not None:
+                # Cache locally so it survives a GitHub hiccup
+                self._soul_path().write_text(gh_content, encoding="utf-8")
+                return self._json({"path": f"github:{repo}/{path}", "content": gh_content, "sha": sha})
+        # Fall through to local
         target = self._soul_path()
         if target.exists():
             return self._json({"path": str(target), "content": target.read_text(encoding="utf-8")})
-        # Fallback: read from image copy if HERMES_HOME copy doesn't exist yet
         fallback = Path(__file__).parent.parent / "SOUL.md"
         if fallback.exists():
             return self._json({"path": str(target), "content": fallback.read_text(encoding="utf-8")})
         return self._json({"path": str(target), "content": ""})
 
     async def _handle_put_soul(self, request: "web.Request") -> "web.Response":
-        """Write SOUL.md to HERMES_HOME (always writable)."""
+        """Write SOUL.md — save locally AND commit to GitHub for persistence."""
         try:
             body = await request.json()
         except Exception:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
+        sha = body.get("sha")  # sha from last GET — required for GitHub update
+        # Always write locally first (fast path)
         target = self._soul_path()
         try:
             target.write_text(content_text, encoding="utf-8")
-            return self._json({"saved": str(target), "ok": True})
         except OSError as exc:
-            return self._error(f"Write failed: {exc}", status=500)
+            return self._error(f"Local write failed: {exc}", status=500)
+        # Commit to GitHub for true persistence
+        gh = self._github_soul_path()
+        if gh:
+            token, repo, branch, path = gh
+            if not sha:
+                _, sha = self._github_get_file(token, repo, path, branch)
+            ok = self._github_put_file(token, repo, path, content_text, sha, branch,
+                                       message="chore: update SOUL.md via dashboard")
+            return self._json({"saved": f"github:{repo}/{path}", "ok": True, "github": ok})
+        return self._json({"saved": str(target), "ok": True, "github": False,
+                           "note": "Set HERMES_GITHUB_REPO env var to persist across deploys"})
 
     def _skill_overlay_path(self, name: str) -> "Path":
         """Writable overlay path for skill files in HERMES_HOME."""
