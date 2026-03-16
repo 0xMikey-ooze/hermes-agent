@@ -1,0 +1,24 @@
+TDD GREEN phase: All 26 tests pass (3 bug-related test files)
+
+tests/test_port_env_var.py: 8 passed
+tests/gateway/test_telegram_conflict.py: 3 passed
+tests/test_tirith_optional_install.py: 15 passed
+
+Total: 26 passed, 0 failed
+
+Fixes applied:
+1. Bug #1 (PORT env var): Added module-level _dashboard_port and _early_port to gateway/run.py
+   - Reads $PORT (Railway PaaS), falls back to $DASHBOARD_PORT, defaults to 3001
+   - Removed duplicate local variable definitions inside methods
+   - _early_port = _dashboard_port (single bind, no conflict)
+
+2. Bug #2 (Telegram 409): Fixed Application lookup in connect() to use dynamic module attribute
+   - getattr(sys.modules[__name__], "Application", Application) ensures monkeypatch works
+   - Resolves test isolation issue when gateway modules are purged and re-imported
+
+3. Bug #3 (Tirith binary): Already implemented correctly — all 15 tests passed without changes
+   - ensure_installed() returns None gracefully on all failure modes
+   - _install_tirith() returns (None, reason) tuples for each failure type
+   - Background install thread doesn't block startup
+   - Disk failure markers prevent repeated downloads for 24h
+   - cosign_missing failures are retryable

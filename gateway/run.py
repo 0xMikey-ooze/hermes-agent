@@ -180,6 +180,16 @@ from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageTyp
 
 logger = logging.getLogger(__name__)
 
+# Resolve the HTTP port once at module level so tests can inspect it.
+# On Railway (and other PaaS), $PORT is the required HTTP port for
+# health checks and public routing. Fall back to DASHBOARD_PORT,
+# then 3001 for local dev.
+_dashboard_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
+
+# The early health server and the full web API share the same port
+# to avoid bind conflicts on Railway.
+_early_port = _dashboard_port
+
 
 def _resolve_runtime_agent_kwargs() -> dict:
     """Resolve provider credentials for gateway-created AIAgent instances."""
@@ -920,13 +930,6 @@ class GatewayRunner:
         try:
             from gateway.web_api import HermesWebAPI
             _agi_client = getattr(self, "agi_client", None)
-            # On Railway (and other PaaS), $PORT is the required HTTP port for
-            # health checks and public routing. Fall back to DASHBOARD_PORT,
-            # then 3001 for local dev.
-            _dashboard_port = int(
-                os.getenv("PORT")
-                or os.getenv("DASHBOARD_PORT", "3001")
-            )
             _web_api = HermesWebAPI(
                 agi_client=_agi_client,
                 config=self.config,
@@ -4570,7 +4573,6 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     # Start a minimal aiohttp server on $PORT immediately so Railway's
     # health check passes even while Telegram is still connecting.
     # The full HermesWebAPI replaces this once the gateway is ready.
-    _early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
     try:
         from aiohttp import web as _aiohttp_web
         import logging as _logging
