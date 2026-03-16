@@ -158,7 +158,7 @@ def update_task_status_handler(params: Dict[str, Any], **_) -> str:
         if note:
             payload["note"] = note
         _db_exec(
-            "INSERT INTO events (event_type, payload, created_at) VALUES ($1, $2::jsonb, NOW())",
+            "INSERT INTO events (event_type, payload, created_at) VALUES ($1, $2, NOW())",
             (event_type, __import__("json").dumps(payload)),
         )
     except Exception as e:

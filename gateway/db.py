@@ -79,7 +79,7 @@ def _exec(sql: str, params=None) -> Optional[List[Dict]]:
 
 def tasks_list(status: str = None) -> List[Dict]:
     if status:
-        rows = _exec("SELECT * FROM tasks WHERE status=$1 ORDER BY created_at DESC", (status,))
+        rows = _exec("SELECT * FROM tasks WHERE status=%s ORDER BY created_at DESC", (status,))
     else:
         rows = _exec("SELECT * FROM tasks ORDER BY created_at DESC")
     if rows is None:
@@ -93,7 +93,7 @@ def tasks_list(status: str = None) -> List[Dict]:
 
 
 def task_get(task_id: str) -> Optional[Dict]:
-    rows = _exec("SELECT * FROM tasks WHERE id=$1", (task_id,))
+    rows = _exec("SELECT * FROM tasks WHERE id=%s", (task_id,))
     if not rows:
         return None
     r = rows[0]
@@ -129,19 +129,19 @@ def task_upsert(task: Dict) -> bool:
 def task_update_status(task_id: str, status: str, result: str = None) -> bool:
     if result is not None:
         r = _exec(
-            "UPDATE tasks SET status=$1, result=$2, updated_at=NOW() WHERE id=$3",
+            "UPDATE tasks SET status=%s, result=%s, updated_at=NOW() WHERE id=%s",
             (status, result, task_id)
         )
     else:
         r = _exec(
-            "UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2",
+            "UPDATE tasks SET status=%s, updated_at=NOW() WHERE id=%s",
             (status, task_id)
         )
     return r is not None
 
 
 def task_delete(task_id: str) -> bool:
-    return _exec("DELETE FROM tasks WHERE id=$1", (task_id,)) is not None
+    return _exec("DELETE FROM tasks WHERE id=%s", (task_id,)) is not None
 
 
 # ── Events ────────────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ def task_delete(task_id: str) -> bool:
 def event_log(event_type: str, agent: str = None, session_id: str = None,
               payload: Any = None) -> bool:
     sql = """INSERT INTO events (event_type, agent, session_id, payload)
-             VALUES ($1, $2, $3, $4)"""
+             VALUES (%s, %s, %s, %s)"""
     payload_json = json.dumps(payload) if payload is not None else None
     return _exec(sql, (event_type, agent, session_id, payload_json)) is not None
 
@@ -157,12 +157,12 @@ def event_log(event_type: str, agent: str = None, session_id: str = None,
 def events_list(limit: int = 100, session_id: str = None) -> List[Dict]:
     if session_id:
         rows = _exec(
-            "SELECT * FROM events WHERE session_id=$1 ORDER BY created_at DESC LIMIT $2",
+            "SELECT * FROM events WHERE session_id=%s ORDER BY created_at DESC LIMIT %s",
             (session_id, limit)
         )
     else:
         rows = _exec(
-            "SELECT * FROM events ORDER BY created_at DESC LIMIT $1", (limit,)
+            "SELECT * FROM events ORDER BY created_at DESC LIMIT %s", (limit,)
         )
     if rows is None:
         return []
@@ -183,7 +183,7 @@ def skill_upsert(name: str, content: str, source_url: str = None,
                  tags: List[str] = None) -> bool:
     sql = """
         INSERT INTO skills (name, source_url, content, tags, installed_at, updated_at)
-        VALUES ($1, $2, $3, $4, NOW(), NOW())
+        VALUES (%s, %s, %s, %s, NOW(), NOW())
         ON CONFLICT (name) DO UPDATE SET
             source_url=EXCLUDED.source_url, content=EXCLUDED.content,
             tags=EXCLUDED.tags, updated_at=NOW()
@@ -238,4 +238,4 @@ def repo_upsert(repo: Dict) -> bool:
 
 
 def repo_delete(full_name: str) -> bool:
-    return _exec("DELETE FROM watched_repos WHERE full_name=$1", (full_name,)) is not None
+    return _exec("DELETE FROM watched_repos WHERE full_name=%s", (full_name,)) is not None
