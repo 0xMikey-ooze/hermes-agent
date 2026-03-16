@@ -133,22 +133,43 @@ class TelegramAdapter(BasePlatformAdapter):
     async def _handle_polling_conflict(self, error: Exception) -> None:
         if self.has_fatal_error and self.fatal_error_code == "telegram_polling_conflict":
             return
-        message = (
-            "Another Telegram bot poller is already using this token. "
-            "Hermes stopped Telegram polling to avoid endless retry spam. "
-            "Make sure only one gateway instance is running for this bot token."
+        # During Railway/PaaS rolling deploys, the old and new containers overlap
+        # briefly causing a 409. Rather than killing the gateway, wait 15s and
+        # reconnect — the old container will have stopped by then.
+        _ROLLING_DEPLOY_WAIT = 15
+        logger.warning(
+            "[%s] Telegram 409 conflict detected — another poller is running. "
+            "Waiting %ds for old container to stop before reconnecting. Error: %s",
+            self.name, _ROLLING_DEPLOY_WAIT, error,
         )
-        logger.error("[%s] %s Original error: %s", self.name, message, error)
-        # Mark as RETRYABLE during rolling deploys (e.g. Railway): the old
-        # container will stop within seconds, after which the new one can
-        # start polling cleanly. Non-retryable would kill the gateway
-        # permanently and prevent the new container from ever connecting.
-        self._set_fatal_error("telegram_polling_conflict", message, retryable=True)
         try:
             if self._app and self._app.updater:
                 await self._app.updater.stop()
-        except Exception as stop_error:
-            logger.warning("[%s] Failed stopping Telegram polling after conflict: %s", self.name, stop_error, exc_info=True)
+            if self._app:
+                await self._app.stop()
+        except Exception:
+            pass
+
+        await asyncio.sleep(_ROLLING_DEPLOY_WAIT)
+
+        logger.info("[%s] Attempting to reconnect after polling conflict...", self.name)
+        try:
+            reconnected = await self.connect()
+            if reconnected:
+                logger.info("[%s] Reconnected successfully after polling conflict.", self.name)
+                return
+        except Exception as reconnect_err:
+            logger.warning("[%s] Reconnect attempt failed: %s", self.name, reconnect_err)
+
+        # If reconnect also failed, declare a fatal error so the container
+        # exits and Railway restarts it (retryable=True → exit code 1).
+        message = (
+            "Another Telegram bot poller is already using this token. "
+            "Waited for old container but reconnect failed. "
+            "Railway will restart this container automatically."
+        )
+        logger.error("[%s] %s", self.name, message)
+        self._set_fatal_error("telegram_polling_conflict", message, retryable=True)
         await self._notify_fatal_error()
 
     async def connect(self) -> bool:
