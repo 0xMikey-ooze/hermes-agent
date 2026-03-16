@@ -1015,17 +1015,10 @@ class HermesWebAPI:
         app.router.add_delete("/api/tasks/{id}", self._handle_delete_task)
         app.router.add_options("/api/tasks", self._handle_options)
         app.router.add_options("/api/tasks/{id}", self._handle_options)
-        app.router.add_post("/api/chat", self._handle_chat)
-        app.router.add_options("/api/chat", self._handle_options)
 
-        # Tasks / Kanban
-        app.router.add_get("/api/tasks", self._handle_get_tasks)
-        app.router.add_post("/api/tasks", self._handle_post_tasks)
-        app.router.add_patch("/api/tasks/{id}", self._handle_patch_task)
-        app.router.add_delete("/api/tasks/{id}", self._handle_delete_task)
-        app.router.add_options("/api/tasks", self._handle_options)
-        app.router.add_options("/api/tasks/{id}", self._handle_options)
+        # Activity
         app.router.add_get("/api/activity", self._handle_activity)
+        app.router.add_options("/api/activity", self._handle_options)
 
         app.router.add_get("/api/status", self._handle_status)
         app.router.add_options("/api/status", self._handle_options)
