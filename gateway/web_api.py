@@ -298,8 +298,13 @@ async function loadTasks(){
     document.getElementById('kpi-backlog').textContent=allTasks.filter(t=>t.status==='backlog').length;
     document.getElementById('kpi-done').textContent=allTasks.filter(t=>t.status==='done').length;
     const active=allTasks.filter(t=>t.status==='in_progress');
-    if(active.length){document.getElementById('op-title').textContent=active[0].title.toUpperCase();document.getElementById('op-desc').textContent=active[0].description||active[0].repo;}
-    else{document.getElementById('op-title').textContent='STANDBY';document.getElementById('op-desc').textContent='No active operations.';}
+    const queued=allTasks.filter(t=>t.status==='backlog');
+    const featured=active[0]||queued[0]||null;
+    if(featured){
+      const prefix=featured.status==='in_progress'?'Processing: ':'Queued: ';
+      document.getElementById('op-title').textContent=featured.title.toUpperCase();
+      document.getElementById('op-desc').textContent=prefix+(featured.description||featured.repo);
+    }else{document.getElementById('op-title').textContent='STANDBY';document.getElementById('op-desc').textContent='No active operations.';}
   }catch(e){}
 }
 
@@ -1070,7 +1075,7 @@ class HermesWebAPI:
             "title": title,
             "description": description,
             "priority": priority,
-            "status": "backlog",
+            "status": "in_progress",
             "created_at": __import__("datetime").datetime.utcnow().isoformat(),
         }
         tasks = self._read_tasks()
@@ -1095,8 +1100,6 @@ class HermesWebAPI:
                     chat_type="dm",
                 )
                 event = MessageEvent(text=prompt, source=source)
-                task["status"] = "in_progress"
-                self._write_tasks(tasks)
                 __import__("asyncio").create_task(runner._handle_message(event))
         except Exception as exc:
             import logging as _log
@@ -1299,7 +1302,7 @@ class HermesWebAPI:
             "title": title,
             "description": description,
             "priority": priority,
-            "status": "backlog",
+            "status": "in_progress",
             "created_at": __import__("datetime").datetime.utcnow().isoformat(),
         }
         tasks = self._read_tasks()
@@ -1324,8 +1327,6 @@ class HermesWebAPI:
                     chat_type="dm",
                 )
                 event = MessageEvent(text=prompt, source=source)
-                task["status"] = "in_progress"
-                self._write_tasks(tasks)
                 __import__("asyncio").create_task(runner._handle_message(event))
         except Exception as exc:
             import logging as _log
