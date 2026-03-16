@@ -1214,19 +1214,29 @@ class HermesWebAPI:
         return p / "SKILL.md"
 
     async def _handle_get_skill_file(self, request: "web.Request") -> "web.Response":
-        """Return SKILL.md — prefer HERMES_HOME overlay, fall back to image."""
+        """Return SKILL.md — DB first (persistent), then local overlay, then image."""
         name = request.match_info["name"]
+        # Try DB first (survives redeployments)
+        if db_available and db_available():
+            try:
+                from gateway.db import _exec as _db_exec
+                rows = _db_exec("SELECT content FROM skills WHERE name=$1", (name,))
+                if rows and rows[0].get("content"):
+                    return self._json({"name": name, "content": rows[0]["content"], "source": "db"})
+            except Exception:
+                pass
+        # Local overlay
         overlay = self._skill_overlay_path(name)
         if overlay.exists():
-            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8")})
+            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8"), "source": "local"})
         # Fallback to image copy
         skill_md = self.skills_path / name / "SKILL.md"
         if not skill_md.exists():
             return self._error(f"Skill '{name}' not found", status=404)
-        return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8")})
+        return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8"), "source": "image"})
 
     async def _handle_put_skill_file(self, request: "web.Request") -> "web.Response":
-        """Write SKILL.md to HERMES_HOME overlay (always writable)."""
+        """Write SKILL.md to HERMES_HOME overlay AND Neon DB for persistence."""
         name = request.match_info["name"]
         try:
             body = await request.json()
@@ -1234,11 +1244,19 @@ class HermesWebAPI:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
         target = self._skill_overlay_path(name)
+        saved_local = False
         try:
             target.write_text(content_text, encoding="utf-8")
-            return self._json({"saved": str(target), "ok": True})
-        except OSError as exc:
-            return self._error(f"Write failed: {exc}", status=500)
+            saved_local = True
+        except OSError:
+            pass
+        # Persist to DB so it survives redeployments
+        db_ok = False
+        if db_skill_upsert and db_available and db_available():
+            db_ok = db_skill_upsert(name, content_text)
+        if not saved_local and not db_ok:
+            return self._error("Write failed: filesystem read-only and DB unavailable", status=500)
+        return self._json({"saved": str(target), "ok": True, "db": db_ok})
 
     async def _handle_github_repos(self, request: "web.Request") -> "web.Response":
         """Fetch all repos accessible via GITHUB_TOKEN."""
@@ -1320,8 +1338,8 @@ class HermesWebAPI:
             if runner is not None:
                 prompt = f"[TASK #{task['id']}] Repo: {repo}\n\n{title}\n\n{description}\n\nStart working on this task autonomously. When done, mark it complete."
                 source = SessionSource(
-                    platform=Platform.TELEGRAM,
-                    chat_id=f"task-{task['id']}",
+                    platform=Platform.LOCAL,
+                    chat_id="dashboard",
                     user_id="dashboard",
                     user_name="Dashboard",
                     chat_type="dm",
@@ -1513,19 +1531,29 @@ class HermesWebAPI:
         return p / "SKILL.md"
 
     async def _handle_get_skill_file(self, request: "web.Request") -> "web.Response":
-        """Return SKILL.md — prefer HERMES_HOME overlay, fall back to image."""
+        """Return SKILL.md — DB first (persistent), then local overlay, then image."""
         name = request.match_info["name"]
+        # Try DB first (survives redeployments)
+        if db_available and db_available():
+            try:
+                from gateway.db import _exec as _db_exec
+                rows = _db_exec("SELECT content FROM skills WHERE name=$1", (name,))
+                if rows and rows[0].get("content"):
+                    return self._json({"name": name, "content": rows[0]["content"], "source": "db"})
+            except Exception:
+                pass
+        # Local overlay
         overlay = self._skill_overlay_path(name)
         if overlay.exists():
-            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8")})
+            return self._json({"name": name, "content": overlay.read_text(encoding="utf-8"), "source": "local"})
         # Fallback to image copy
         skill_md = self.skills_path / name / "SKILL.md"
         if not skill_md.exists():
             return self._error(f"Skill '{name}' not found", status=404)
-        return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8")})
+        return self._json({"name": name, "content": skill_md.read_text(encoding="utf-8"), "source": "image"})
 
     async def _handle_put_skill_file(self, request: "web.Request") -> "web.Response":
-        """Write SKILL.md to HERMES_HOME overlay (always writable)."""
+        """Write SKILL.md to HERMES_HOME overlay AND Neon DB for persistence."""
         name = request.match_info["name"]
         try:
             body = await request.json()
@@ -1533,11 +1561,19 @@ class HermesWebAPI:
             return self._error("Invalid JSON")
         content_text = body.get("content", "")
         target = self._skill_overlay_path(name)
+        saved_local = False
         try:
             target.write_text(content_text, encoding="utf-8")
-            return self._json({"saved": str(target), "ok": True})
-        except OSError as exc:
-            return self._error(f"Write failed: {exc}", status=500)
+            saved_local = True
+        except OSError:
+            pass
+        # Persist to DB so it survives redeployments
+        db_ok = False
+        if db_skill_upsert and db_available and db_available():
+            db_ok = db_skill_upsert(name, content_text)
+        if not saved_local and not db_ok:
+            return self._error("Write failed: filesystem read-only and DB unavailable", status=500)
+        return self._json({"saved": str(target), "ok": True, "db": db_ok})
 
     async def _handle_github_repos(self, request: "web.Request") -> "web.Response":
         """Fetch all repos accessible via GITHUB_TOKEN."""
