@@ -1167,3 +1167,7 @@ class TelegramAdapter(BasePlatformAdapter):
             message_id=str(message.message_id),
             timestamp=message.date,
         )
+
+
+# Alias for backward compatibility — tests and external code may use TelegramPlatform
+TelegramPlatform = TelegramAdapter
