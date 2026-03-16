@@ -33,436 +33,373 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hermes Dashboard</title>
+<title>Hermes</title>
 <style>
-  :root {
-    --bg: #0d0f14;
-    --surface: #161a23;
-    --border: #252b38;
-    --accent: #6c63ff;
-    --accent2: #00d2ff;
-    --green: #22d3a0;
-    --red: #ff4d6d;
-    --yellow: #fbbf24;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --card: #1a1f2e;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
-
-  /* Layout */
-  .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
-  .main { padding: 32px; overflow-y: auto; }
-
-  /* Sidebar */
-  .logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-  .logo h1 { font-size: 18px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.3px; }
-  .logo .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-
-  nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; transition: all .15s; border-left: 2px solid transparent; }
-  nav a:hover { color: var(--text); background: rgba(255,255,255,.03); }
-  nav a.active { color: var(--text); border-left-color: var(--accent); background: rgba(108,99,255,.08); }
-  nav a .icon { font-size: 15px; width: 18px; text-align: center; }
-
-  .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
-
-  /* Cards */
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
-  .kpi .value { font-size: 28px; font-weight: 700; line-height: 1; }
-  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
-  .kpi.green .value { color: var(--green); }
-  .kpi.accent .value { color: var(--accent); }
-  .kpi.blue .value { color: var(--accent2); }
-
-  /* Section */
-  .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
-  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-  .section-header h2 { font-size: 14px; font-weight: 600; }
-  .section-body { padding: 20px; }
-
-  /* Table */
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; padding: 0 0 12px; font-weight: 500; }
-  td { padding: 10px 0; border-top: 1px solid var(--border); vertical-align: middle; }
-  tr:first-child td { border-top: none; }
-
-  /* Badges */
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-  .badge.green { background: rgba(34,211,160,.15); color: var(--green); }
-  .badge.red { background: rgba(255,77,109,.15); color: var(--red); }
-  .badge.yellow { background: rgba(251,191,36,.15); color: var(--yellow); }
-  .badge.accent { background: rgba(108,99,255,.15); color: var(--accent); }
-
-  /* Events feed */
-  .events-feed { max-height: 280px; overflow-y: auto; font-size: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
-  .event-line { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); color: var(--muted); }
-  .event-line .ts { color: var(--accent); margin-right: 8px; }
-  .event-line .msg { color: var(--text); }
-
-  /* Memory search */
-  .search-row { display: flex; gap: 10px; margin-bottom: 16px; }
-  .search-row input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 14px; font-size: 13px; outline: none; transition: border .15s; }
-  .search-row input:focus { border-color: var(--accent); }
-  .search-row button { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
-  .search-row button:hover { opacity: .85; }
-  .search-results { font-size: 13px; }
-  .search-result { padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .search-result .score { color: var(--accent); font-size: 11px; margin-bottom: 4px; }
-
-  /* Skills grid */
-  .skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-  .skill-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color .15s; }
-  .skill-card:hover { border-color: var(--accent); }
-  .skill-card .name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-  .skill-card .desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
-
-  /* Uptime bar */
-  .uptime-bar { height: 4px; background: var(--border); border-radius: 99px; margin-top: 10px; overflow: hidden; }
-  .uptime-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 99px; transition: width 1s; }
-
-  /* Tabs */
-  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-  .tab { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); transition: all .15s; }
-  .tab.active { background: rgba(108,99,255,.15); color: var(--accent); }
-  .tab:hover:not(.active) { color: var(--text); }
-
-  /* Pages */
-  .page { display: none; }
-  .page.active { display: block; }
-
-  /* Repo add form */
-  .add-row { display: flex; gap: 10px; margin-top: 16px; }
-  .add-row input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; }
-  .add-row input:focus { border-color: var(--accent); }
-  .add-row button { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .del-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: all .15s; }
-  .del-btn:hover { border-color: var(--red); color: var(--red); }
-
-  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 32px 0; }
-  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-  .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
-
-  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+:root{--bg:#0d0f14;--surface:#161a23;--border:#252b38;--accent:#6c63ff;--accent2:#00d2ff;--green:#22d3a0;--red:#ff4d6d;--yellow:#fbbf24;--text:#e2e8f0;--muted:#64748b;--card:#1a1f2e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;overflow:hidden}
+.shell{display:grid;grid-template-columns:200px 1fr;height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.logo{padding:20px;border-bottom:1px solid var(--border)}
+.logo h1{font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo .sub{font-size:11px;color:var(--muted);margin-top:3px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:5px;box-shadow:0 0 5px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+nav{padding:8px 0;flex:1}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:all .12s;border-left:2px solid transparent;cursor:pointer}
+nav a:hover{color:var(--text);background:rgba(255,255,255,.03)}
+nav a.active{color:var(--text);border-left-color:var(--accent);background:rgba(108,99,255,.1)}
+.sidebar-foot{padding:14px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.8}
+.main{overflow:hidden;display:flex;flex-direction:column}
+.page{display:none;flex:1;overflow:hidden;flex-direction:column}
+.page.active{display:flex}
+.page-inner{flex:1;overflow-y:auto;padding:28px}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px}
+.kpi .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.kpi .val{font-size:26px;font-weight:700}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:5px}
+.kpi.g .val{color:var(--green)}.kpi.a .val{color:var(--accent)}.kpi.b .val{color:var(--accent2)}
+.upbar{height:3px;background:var(--border);border-radius:99px;margin-top:8px;overflow:hidden}
+.upfill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width 1s}
+/* Card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.card-head h2{font-size:13px;font-weight:600}
+.card-body{padding:18px}
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding-bottom:10px;font-weight:500}
+td{padding:9px 0;border-top:1px solid var(--border);vertical-align:middle}
+tr:first-child td{border-top:none}
+.badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600}
+.badge.g{background:rgba(34,211,160,.15);color:var(--green)}
+.badge.a{background:rgba(108,99,255,.15);color:var(--accent)}
+.badge.y{background:rgba(251,191,36,.15);color:var(--yellow)}
+/* Events */
+.ev-feed{max-height:240px;overflow-y:auto;font-size:11px;font-family:'JetBrains Mono',monospace}
+.ev-line{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:8px}
+.ev-ts{color:var(--accent);flex-shrink:0}
+.ev-msg{color:var(--muted)}
+/* CHAT */
+#page-chat{height:100vh}
+.chat-wrap{display:flex;flex-direction:column;height:100%}
+.chat-msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+.msg-row{display:flex;flex-direction:column}
+.msg-row.user{align-items:flex-end}
+.msg-row.agent{align-items:flex-start}
+.msg-bubble{padding:10px 14px;border-radius:18px;max-width:72%;line-height:1.5;font-size:14px;word-break:break-word}
+.msg-row.user .msg-bubble{background:var(--accent);color:#fff;border-radius:18px 18px 4px 18px}
+.msg-row.agent .msg-bubble{background:var(--card);border:1px solid var(--border);border-radius:18px 18px 18px 4px;color:var(--text)}
+.msg-meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 4px}
+.typing{display:flex;gap:4px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:18px 18px 18px 4px;align-self:flex-start;width:fit-content}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:bounce .9s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+.chat-input-row{padding:16px;border-top:1px solid var(--border);display:flex;gap:10px;background:var(--surface)}
+.chat-input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:24px;padding:11px 18px;font-size:14px;outline:none;resize:none;transition:border .15s;font-family:inherit}
+.chat-input:focus{border-color:var(--accent)}
+.send-btn{background:var(--accent);color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+.send-btn:hover{opacity:.85}
+.send-btn:disabled{opacity:.4;cursor:not-allowed}
+/* Repos */
+.add-row{display:flex;gap:8px;margin-top:16px}
+.add-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;outline:none}
+.add-row input:focus{border-color:var(--accent)}
+.add-row button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.del-btn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;transition:all .12s}
+.del-btn:hover{border-color:var(--red);color:var(--red)}
+/* Activity */
+.act-feed{font-size:12px;font-family:'JetBrains Mono',monospace;max-height:420px;overflow-y:auto}
+.act-line{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:10px;align-items:flex-start}
+.act-ts{color:var(--accent);flex-shrink:0;font-size:11px}
+.act-msg{color:var(--text);word-break:break-all}
+.empty{color:var(--muted);text-align:center;padding:32px 0;font-size:13px}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
 </style>
 </head>
 <body>
 <div class="shell">
-  <aside class="sidebar">
-    <div class="logo">
-      <h1>⚡ Hermes</h1>
-      <div class="sub"><span class="status-dot" id="dot"></span><span id="status-text">connecting...</span></div>
-    </div>
-    <nav>
-      <a href="#" class="active" data-page="overview" onclick="nav(this)"><span class="icon">📊</span>Overview</a>
-      <a href="#" data-page="sessions" onclick="nav(this)"><span class="icon">💬</span>Sessions</a>
-      <a href="#" data-page="skills" onclick="nav(this)"><span class="icon">🧠</span>Skills</a>
-      <a href="#" data-page="repos" onclick="nav(this)"><span class="icon">📁</span>Repos</a>
-      <a href="#" data-page="memory" onclick="nav(this)"><span class="icon">🔍</span>Memory</a>
-      <a href="#" data-page="events" onclick="nav(this)"><span class="icon">⚡</span>Live Events</a>
-    </nav>
-    <div class="sidebar-footer">
-      <div id="model-label">model: —</div>
-      <div id="platform-label">platform: —</div>
-    </div>
-  </aside>
+<aside class="sidebar">
+  <div class="logo">
+    <h1>⚡ Hermes</h1>
+    <div class="sub"><span class="dot" id="dot"></span><span id="status-txt">connecting...</span></div>
+  </div>
+  <nav>
+    <a class="active" data-page="overview" onclick="nav(this,event)"><span>📊</span>Overview</a>
+    <a data-page="chat" onclick="nav(this,event)"><span>💬</span>Chat</a>
+    <a data-page="repos" onclick="nav(this,event)"><span>📁</span>Repos</a>
+    <a data-page="activity" onclick="nav(this,event)"><span>⚡</span>Activity</a>
+  </nav>
+  <div class="sidebar-foot">
+    <div id="foot-model">model: —</div>
+    <div id="foot-platform">platform: —</div>
+    <div id="foot-uptime">uptime: —</div>
+  </div>
+</aside>
+<main class="main">
 
-  <main class="main">
-
-    <!-- OVERVIEW -->
-    <div class="page active" id="page-overview">
-      <div class="page-title">Overview</div>
-      <div class="page-sub" id="overview-sub">Loading status...</div>
-
+  <!-- OVERVIEW -->
+  <div class="page active" id="page-overview">
+    <div class="page-inner">
       <div class="kpi-grid">
-        <div class="kpi green">
-          <div class="label">Gateway</div>
-          <div class="value" id="kpi-gateway">—</div>
-          <div class="sub">core process</div>
-        </div>
-        <div class="kpi accent">
-          <div class="label">Uptime</div>
-          <div class="value" id="kpi-uptime">—</div>
-          <div class="sub">since last deploy</div>
-          <div class="uptime-bar"><div class="uptime-fill" id="uptime-fill" style="width:0%"></div></div>
-        </div>
-        <div class="kpi blue">
-          <div class="label">Skills</div>
-          <div class="value" id="kpi-skills">—</div>
-          <div class="sub">loaded</div>
-        </div>
-        <div class="kpi">
-          <div class="label">Sessions</div>
-          <div class="value" id="kpi-sessions">—</div>
-          <div class="sub">active</div>
-        </div>
+        <div class="kpi g"><div class="lbl">Gateway</div><div class="val" id="kpi-gw">—</div><div class="sub">core process</div></div>
+        <div class="kpi a"><div class="lbl">Uptime</div><div class="val" id="kpi-up">—</div><div class="upbar"><div class="upfill" id="upfill" style="width:0%"></div></div></div>
+        <div class="kpi b"><div class="lbl">Skills</div><div class="val" id="kpi-sk">—</div><div class="sub">loaded</div></div>
+        <div class="kpi"><div class="lbl">Sessions</div><div class="val" id="kpi-ss">—</div><div class="sub">active</div></div>
       </div>
-
-      <div class="section">
-        <div class="section-header"><h2>Active Sessions</h2></div>
-        <div class="section-body">
-          <div id="sessions-preview"><div class="empty">No active sessions</div></div>
-        </div>
+      <div class="card">
+        <div class="card-head"><h2>Active Sessions</h2></div>
+        <div class="card-body" id="ov-sessions"><div class="empty">No active sessions</div></div>
       </div>
-
-      <div class="section">
-        <div class="section-header"><h2>Recent Events</h2><span style="font-size:11px;color:var(--muted)" id="event-count">live</span></div>
-        <div class="section-body">
-          <div class="events-feed" id="events-mini"><div class="empty">Waiting for events...</div></div>
-        </div>
+      <div class="card">
+        <div class="card-head"><h2>Recent Activity</h2><span style="font-size:11px;color:var(--muted)" id="ev-count">live</span></div>
+        <div class="card-body"><div class="ev-feed" id="ev-mini"><div class="empty">Waiting for events...</div></div></div>
       </div>
     </div>
+  </div>
 
-    <!-- SESSIONS -->
-    <div class="page" id="page-sessions">
-      <div class="page-title">Sessions</div>
-      <div class="page-sub">Active conversations and agent threads</div>
-      <div class="section">
-        <div class="section-body">
-          <div id="sessions-full"><div class="empty">No sessions found</div></div>
-        </div>
+  <!-- CHAT -->
+  <div class="page" id="page-chat">
+    <div class="chat-wrap">
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="msg-row agent"><div class="msg-bubble">👋 Hey! I'm Hermes. Ask me anything or give me a task.</div></div>
+      </div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chat-in" placeholder="Message Hermes..." rows="1" onkeydown="chatKey(event)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()">↑</button>
       </div>
     </div>
+  </div>
 
-    <!-- SKILLS -->
-    <div class="page" id="page-skills">
-      <div class="page-title">Skills</div>
-      <div class="page-sub" id="skills-sub">Loading skills...</div>
-      <div class="skills-grid" id="skills-grid"></div>
-    </div>
-
-    <!-- REPOS -->
-    <div class="page" id="page-repos">
-      <div class="page-title">Repos</div>
-      <div class="page-sub">GitHub repositories being watched</div>
-      <div class="section">
-        <div class="section-body">
-          <div id="repos-list"></div>
+  <!-- REPOS -->
+  <div class="page" id="page-repos">
+    <div class="page-inner">
+      <div class="card">
+        <div class="card-head"><h2>Watched Repos</h2><button onclick="loadRepos()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px">↻ refresh</button></div>
+        <div class="card-body">
+          <div id="repos-list"><div class="empty">Loading...</div></div>
           <div class="add-row">
-            <input id="repo-owner" placeholder="owner" />
-            <input id="repo-name" placeholder="repo" />
+            <input id="r-owner" placeholder="owner" />
+            <input id="r-repo" placeholder="repo" />
             <button onclick="addRepo()">+ Add</button>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- MEMORY -->
-    <div class="page" id="page-memory">
-      <div class="page-title">Memory Search</div>
-      <div class="page-sub">Semantic search across agent memory</div>
-      <div class="section">
-        <div class="section-body">
-          <div class="search-row">
-            <input id="mem-query" placeholder="Search memory..." onkeydown="if(event.key==='Enter')searchMem()" />
-            <button onclick="searchMem()">Search</button>
-          </div>
-          <div class="search-results" id="mem-results"></div>
-        </div>
+  <!-- ACTIVITY -->
+  <div class="page" id="page-activity">
+    <div class="page-inner">
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi g"><div class="lbl">Status</div><div class="val" id="act-gw">—</div></div>
+        <div class="kpi a"><div class="lbl">Uptime</div><div class="val" id="act-up">—</div></div>
+        <div class="kpi b"><div class="lbl">Model</div><div class="val" id="act-model" style="font-size:14px;margin-top:4px">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Live Event Stream</h2><span class="badge g" id="sse-badge">connecting</span></div>
+        <div class="card-body"><div class="act-feed" id="act-feed"><div class="empty">Waiting for events...</div></div></div>
       </div>
     </div>
+  </div>
 
-    <!-- EVENTS -->
-    <div class="page" id="page-events">
-      <div class="page-title">Live Events</div>
-      <div class="page-sub">Real-time blackboard event stream (SSE)</div>
-      <div class="section">
-        <div class="section-header"><h2>Event Feed</h2><span class="badge green" id="sse-badge">connecting</span></div>
-        <div class="section-body">
-          <div class="events-feed" id="events-full" style="max-height:520px"></div>
-        </div>
-      </div>
-    </div>
-
-  </main>
+</main>
 </div>
-
 <script>
-const BASE = '';
-let eventLog = [];
-let sseConn = null;
+const BASE='';
+let evLog=[];
+let sse=null;
+let chatHistory=[];
 
-// Nav
-function nav(el) {
-  event.preventDefault();
-  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+function nav(el,e){
+  if(e)e.preventDefault();
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('page-' + el.dataset.page).classList.add('active');
-  if (el.dataset.page === 'skills') loadSkills();
-  if (el.dataset.page === 'repos') loadRepos();
-  if (el.dataset.page === 'sessions') loadSessionsFull();
+  document.getElementById('page-'+el.dataset.page).classList.add('active');
+  if(el.dataset.page==='repos')loadRepos();
 }
 
-// Format uptime
-function fmtUptime(s) {
-  if (s < 60) return s.toFixed(0) + 's';
-  if (s < 3600) return (s/60).toFixed(0) + 'm';
-  if (s < 86400) return (s/3600).toFixed(1) + 'h';
-  return (s/86400).toFixed(1) + 'd';
-}
+function fmt(s){if(s<60)return s.toFixed(0)+'s';if(s<3600)return(s/60).toFixed(0)+'m';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
 
-// Load status
-async function loadStatus() {
-  try {
-    const r = await fetch(BASE + '/api/status');
-    const d = await r.json();
-    document.getElementById('kpi-gateway').textContent = d.gateway_running ? '✓ ON' : '✗ OFF';
-    document.getElementById('kpi-uptime').textContent = fmtUptime(d.uptime_seconds);
-    document.getElementById('uptime-fill').style.width = Math.min(100, (d.uptime_seconds / 86400) * 100) + '%';
-    document.getElementById('model-label').textContent = 'model: ' + (d.model || '—');
-    document.getElementById('platform-label').textContent = 'platform: ' + (d.platform || '—');
-    document.getElementById('overview-sub').textContent = 'v' + d.version + ' · ' + d.platform;
-    document.getElementById('dot').style.background = '#22d3a0';
-    document.getElementById('status-text').textContent = 'online';
-  } catch(e) {
-    document.getElementById('dot').style.background = '#ff4d6d';
-    document.getElementById('status-text').textContent = 'offline';
+async function loadStatus(){
+  try{
+    const d=await fetch(BASE+'/api/status').then(r=>r.json());
+    document.getElementById('kpi-gw').textContent=d.gateway_running?'● ON':'○ OFF';
+    document.getElementById('kpi-up').textContent=fmt(d.uptime_seconds);
+    document.getElementById('upfill').style.width=Math.min(100,(d.uptime_seconds/86400)*100)+'%';
+    document.getElementById('foot-model').textContent='model: '+(d.model||'—');
+    document.getElementById('foot-platform').textContent='platform: '+(d.platform||'—');
+    document.getElementById('foot-uptime').textContent='uptime: '+fmt(d.uptime_seconds);
+    document.getElementById('act-gw').textContent=d.gateway_running?'Online':'Offline';
+    document.getElementById('act-up').textContent=fmt(d.uptime_seconds);
+    document.getElementById('act-model').textContent=d.model||'—';
+    document.getElementById('dot').style.background='var(--green)';
+    document.getElementById('status-txt').textContent='online';
+  }catch(e){
+    document.getElementById('dot').style.background='var(--red)';
+    document.getElementById('status-txt').textContent='offline';
   }
 }
 
-// Load sessions
-async function loadSessions() {
-  try {
-    const r = await fetch(BASE + '/api/sessions');
-    const d = await r.json();
-    const sessions = d.sessions || [];
-    document.getElementById('kpi-sessions').textContent = sessions.length;
-    const el = document.getElementById('sessions-preview');
-    if (!sessions.length) { el.innerHTML = '<div class="empty">No active sessions</div>'; return; }
-    el.innerHTML = '<table><thead><tr><th>ID</th><th>Platform</th><th>Status</th></tr></thead><tbody>' +
-      sessions.map(s => `<tr><td>${s.id||s.session_id||'—'}</td><td>${s.platform||'—'}</td><td><span class="badge green">active</span></td></tr>`).join('') +
+async function loadSessions(){
+  try{
+    const d=await fetch(BASE+'/api/sessions').then(r=>r.json());
+    const ss=d.sessions||[];
+    document.getElementById('kpi-ss').textContent=ss.length;
+    const el=document.getElementById('ov-sessions');
+    if(!ss.length){el.innerHTML='<div class="empty">No active sessions</div>';return;}
+    el.innerHTML='<table><thead><tr><th>ID</th><th>Platform</th><th>Status</th></tr></thead><tbody>'+
+      ss.map(s=>`<tr><td style="font-family:monospace;font-size:11px">${s.id||s.session_id||'—'}</td><td>${s.platform||'—'}</td><td><span class="badge g">active</span></td></tr>`).join('')+
       '</tbody></table>';
-  } catch(e) {}
+  }catch(e){}
 }
 
-async function loadSessionsFull() {
-  try {
-    const r = await fetch(BASE + '/api/sessions');
-    const d = await r.json();
-    const sessions = d.sessions || [];
-    const el = document.getElementById('sessions-full');
-    if (!sessions.length) { el.innerHTML = '<div class="empty">No sessions found</div>'; return; }
-    el.innerHTML = '<table><thead><tr><th>Session ID</th><th>Platform</th><th>Model</th><th>Status</th></tr></thead><tbody>' +
-      sessions.map(s => `<tr>
-        <td style="font-family:monospace;font-size:12px">${s.id||s.session_id||'—'}</td>
-        <td>${s.platform||'—'}</td>
-        <td><span class="badge accent">${s.model||'—'}</span></td>
-        <td><span class="badge green">active</span></td>
-      </tr>`).join('') + '</tbody></table>';
-  } catch(e) {}
+async function loadSkills(){
+  try{
+    const d=await fetch(BASE+'/api/skills').then(r=>r.json());
+    document.getElementById('kpi-sk').textContent=(d.skills||[]).length;
+  }catch(e){}
 }
 
-// Load skills
-async function loadSkills() {
-  try {
-    const r = await fetch(BASE + '/api/skills');
-    const d = await r.json();
-    const skills = d.skills || [];
-    document.getElementById('kpi-skills').textContent = skills.length;
-    document.getElementById('skills-sub').textContent = skills.length + ' skills loaded';
-    document.getElementById('skills-grid').innerHTML = skills.map(s =>
-      `<div class="skill-card">
-        <div class="name">${s.name}</div>
-        <div class="desc">${s.description || 'No description'}</div>
-        ${s.score !== null && s.score !== undefined ? `<div style="margin-top:6px"><span class="badge accent">score: ${s.score}</span></div>` : ''}
-      </div>`
-    ).join('');
-  } catch(e) {}
-}
-
-// Load repos
-async function loadRepos() {
-  try {
-    const r = await fetch(BASE + '/api/repos');
-    const d = await r.json();
-    const repos = d.repos || [];
-    const el = document.getElementById('repos-list');
-    if (!repos.length) { el.innerHTML = '<div class="empty">No repos configured</div>'; return; }
-    el.innerHTML = '<table><thead><tr><th>Repo</th><th></th></tr></thead><tbody>' +
-      repos.map(r => `<tr>
-        <td><a href="https://github.com/${r.owner}/${r.repo}" target="_blank" style="color:var(--accent2);text-decoration:none">${r.owner}/${r.repo}</a></td>
+async function loadRepos(){
+  document.getElementById('repos-list').innerHTML='<div class="empty">Loading...</div>';
+  try{
+    const d=await fetch(BASE+'/api/repos').then(r=>r.json());
+    const repos=d.repos||[];
+    const el=document.getElementById('repos-list');
+    if(!repos.length){el.innerHTML='<div class="empty">No repos configured</div>';return;}
+    el.innerHTML='<table><thead><tr><th>Repository</th><th></th></tr></thead><tbody>'+
+      repos.map(r=>`<tr>
+        <td><a href="https://github.com/${r.owner}/${r.repo}" target="_blank" style="color:var(--accent2);text-decoration:none;font-size:13px">⎇ ${r.owner}/<strong>${r.repo}</strong></a></td>
         <td style="text-align:right"><button class="del-btn" onclick="delRepo('${r.owner}','${r.repo}')">remove</button></td>
-      </tr>`).join('') + '</tbody></table>';
-  } catch(e) {}
+      </tr>`).join('')+'</tbody></table>';
+  }catch(e){document.getElementById('repos-list').innerHTML='<div class="empty">Failed to load repos</div>';}
 }
 
-async function addRepo() {
-  const owner = document.getElementById('repo-owner').value.trim();
-  const repo = document.getElementById('repo-name').value.trim();
-  if (!owner || !repo) return;
-  await fetch(BASE + '/api/repos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({owner, repo}) });
-  document.getElementById('repo-owner').value = '';
-  document.getElementById('repo-name').value = '';
+async function addRepo(){
+  const owner=document.getElementById('r-owner').value.trim();
+  const repo=document.getElementById('r-repo').value.trim();
+  if(!owner||!repo)return;
+  await fetch(BASE+'/api/repos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner,repo})});
+  document.getElementById('r-owner').value='';
+  document.getElementById('r-repo').value='';
   loadRepos();
 }
 
-async function delRepo(owner, repo) {
-  await fetch(BASE + `/api/repos/${owner}/${repo}`, { method: 'DELETE' });
+async function delRepo(owner,repo){
+  await fetch(BASE+`/api/repos/${owner}/${repo}`,{method:'DELETE'});
   loadRepos();
 }
 
-// Memory search
-async function searchMem() {
-  const q = document.getElementById('mem-query').value.trim();
-  if (!q) return;
-  document.getElementById('mem-results').innerHTML = '<div class="empty">Searching...</div>';
-  try {
-    const r = await fetch(BASE + '/api/memory/search?q=' + encodeURIComponent(q));
-    const d = await r.json();
-    const results = d.results || [];
-    if (!results.length) { document.getElementById('mem-results').innerHTML = '<div class="empty">No results found</div>'; return; }
-    document.getElementById('mem-results').innerHTML = results.map(r =>
-      `<div class="search-result">
-        ${r.score !== undefined ? `<div class="score">relevance: ${(r.score*100).toFixed(0)}%</div>` : ''}
-        <div>${r.text || r.content || JSON.stringify(r)}</div>
-      </div>`
-    ).join('');
-  } catch(e) { document.getElementById('mem-results').innerHTML = '<div class="empty">Search failed</div>'; }
+// Chat
+function chatKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
 }
 
-// SSE events
-function connectSSE() {
-  if (sseConn) sseConn.close();
-  sseConn = new EventSource(BASE + '/api/events');
-  sseConn.onopen = () => { document.getElementById('sse-badge').textContent = 'live'; document.getElementById('sse-badge').className = 'badge green'; };
-  sseConn.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (Object.keys(data).length === 0) return;
-      const ts = new Date().toLocaleTimeString();
-      const msg = JSON.stringify(data).slice(0, 120);
-      eventLog.unshift({ts, msg});
-      if (eventLog.length > 100) eventLog.pop();
-      renderEvents();
-    } catch(err) {}
+function appendMsg(role,text){
+  const msgs=document.getElementById('chat-msgs');
+  const ts=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const div=document.createElement('div');
+  div.className='msg-row '+role;
+  div.innerHTML=`<div class="msg-bubble">${text.replace(/\n/g,'<br>')}</div><div class="msg-meta">${ts}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
+
+function showTyping(){
+  const msgs=document.getElementById('chat-msgs');
+  const div=document.createElement('div');
+  div.className='msg-row agent';
+  div.id='typing-ind';
+  div.innerHTML='<div class="typing"><span></span><span></span><span></span></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function hideTyping(){
+  const el=document.getElementById('typing-ind');
+  if(el)el.remove();
+}
+
+async function sendMsg(){
+  const inp=document.getElementById('chat-in');
+  const btn=document.getElementById('send-btn');
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  inp.style.height='auto';
+  appendMsg('user',text);
+  btn.disabled=true;
+  showTyping();
+  try{
+    const r=await fetch(BASE+'/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:text})
+    });
+    const d=await r.json();
+    hideTyping();
+    appendMsg('agent',d.response||'(no response)');
+  }catch(e){
+    hideTyping();
+    appendMsg('agent','⚠️ Connection error. Is the gateway running?');
+  }
+  btn.disabled=false;
+  inp.focus();
+}
+
+// SSE
+function connectSSE(){
+  if(sse)sse.close();
+  sse=new EventSource(BASE+'/api/events');
+  sse.onopen=()=>{
+    const b=document.getElementById('sse-badge');
+    if(b){b.textContent='live';b.className='badge g';}
   };
-  sseConn.onerror = () => { document.getElementById('sse-badge').textContent = 'reconnecting'; document.getElementById('sse-badge').className = 'badge yellow'; };
+  sse.onmessage=(e)=>{
+    try{
+      const data=JSON.parse(e.data);
+      if(!Object.keys(data).length)return;
+      const ts=new Date().toLocaleTimeString();
+      const msg=JSON.stringify(data).slice(0,140);
+      evLog.unshift({ts,msg});
+      if(evLog.length>150)evLog.pop();
+      renderEvents();
+    }catch(err){}
+  };
+  sse.onerror=()=>{
+    const b=document.getElementById('sse-badge');
+    if(b){b.textContent='reconnecting';b.className='badge y';}
+  };
 }
 
-function renderEvents() {
-  const html = eventLog.length
-    ? eventLog.map(e => `<div class="event-line"><span class="ts">${e.ts}</span><span class="msg">${e.msg}</span></div>`).join('')
-    : '<div class="empty">Waiting for events...</div>';
-  ['events-mini', 'events-full'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = html; });
-  document.getElementById('event-count').textContent = eventLog.length + ' events';
+function renderEvents(){
+  const html=evLog.length
+    ?evLog.map(e=>`<div class="ev-line"><span class="ev-ts">${e.ts}</span><span class="ev-msg">${e.msg}</span></div>`).join('')
+    :'<div class="empty">Waiting for events...</div>';
+  ['ev-mini','act-feed'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
+  const c=document.getElementById('ev-count');
+  if(c)c.textContent=evLog.length+' events';
 }
 
-// Init
-async function init() {
+// Auto-resize textarea
+document.getElementById('chat-in').addEventListener('input',function(){
+  this.style.height='auto';
+  this.style.height=Math.min(this.scrollHeight,120)+'px';
+});
+
+async function init(){
   await loadStatus();
-  await loadSessions();
-  await loadSkills();
+  await Promise.all([loadSessions(),loadSkills()]);
   connectSSE();
-  setInterval(loadStatus, 15000);
-  setInterval(loadSessions, 10000);
+  setInterval(loadStatus,15000);
+  setInterval(loadSessions,10000);
 }
-
 init();
 </script>
 </body>
@@ -802,6 +739,11 @@ class HermesWebAPI:
         app.router.add_get("/", self._handle_health)
         app.router.add_get("/health", self._handle_health)
         app.router.add_get("/dashboard", self._handle_dashboard)
+        app.router.add_post("/api/chat", self._handle_chat)
+        app.router.add_options("/api/chat", self._handle_options)
+        app.router.add_post("/api/chat", self._handle_chat)
+        app.router.add_options("/api/chat", self._handle_options)
+        app.router.add_get("/api/activity", self._handle_activity)
 
         app.router.add_get("/api/status", self._handle_status)
         app.router.add_options("/api/status", self._handle_options)
@@ -870,6 +812,80 @@ class HermesWebAPI:
         # Always return 200 to Telegram so it doesn't retry
         return web.Response(status=200, text="ok")
 
+
+
+    async def _handle_chat(self, request: "web.Request") -> "web.Response":
+        """Web chat endpoint — injects a message into the gateway runner."""
+        try:
+            body = await request.json()
+        except Exception:
+            return self._error("Invalid JSON body")
+
+        message = (body.get("message") or "").strip()
+        if not message:
+            return self._error("Missing field: message")
+
+        try:
+            from gateway import run as _run
+            runner = getattr(_run, "_active_runner", None)
+            if runner is None:
+                return self._json({"response": "Agent not ready — runner not initialized."})
+
+            from gateway.session import SessionSource
+            from gateway.config import Platform
+            from gateway.platforms.base import MessageEvent
+
+            source = SessionSource(
+                platform=Platform.TELEGRAM,
+                chat_id="web-dashboard",
+                user_id="dashboard",
+                user_name="Dashboard",
+                chat_type="dm",
+            )
+            event = MessageEvent(text=message, source=source)
+            response = await runner._handle_message(event)
+            return self._json({"response": response or "(no response)"})
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("Chat handler error: %s", exc)
+            return self._json({"response": f"Error: {exc}"})
+
+
+    async def _handle_chat(self, request: "web.Request") -> "web.Response":
+        """Web chat endpoint — inject a message into the gateway and return the response."""
+        try:
+            body = await request.json()
+        except Exception:
+            return self._error("Invalid JSON body")
+
+        message = (body.get("message") or "").strip()
+        if not message:
+            return self._error("Missing required field: message")
+
+        try:
+            from gateway import run as _run
+            from gateway.session import SessionSource
+            from gateway.config import Platform
+            from gateway.platforms.base import MessageEvent
+
+            runner = getattr(_run, "_active_runner", None)
+            if runner is None:
+                return self._json({"response": "Agent not ready — gateway not started yet."})
+
+            source = SessionSource(
+                platform=Platform.TELEGRAM,
+                chat_id="web-dashboard",
+                user_id="dashboard",
+                user_name="Dashboard",
+                chat_type="dm",
+            )
+            event = MessageEvent(text=message, source=source)
+            response = await runner._handle_message(event)
+            return self._json({"response": response or ""})
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("Chat handler error: %s", exc)
+            return self._json({"response": f"Error: {exc}"})
 
     async def _handle_dashboard(self, request: "web.Request") -> "web.Response":
         return web.Response(
