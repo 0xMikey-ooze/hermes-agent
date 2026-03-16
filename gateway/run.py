@@ -288,12 +288,16 @@ def _ensure_mcp_config():
     mcp_servers = config.get("mcp_servers", {})
     changed = False
 
-    # Context7 — free MCP server for up-to-date library documentation
+    # Context7 — MCP server for up-to-date library documentation
     if "context7" not in mcp_servers:
-        mcp_servers["context7"] = {
+        ctx7_config = {
             "url": "https://mcp.context7.com/mcp",
             "timeout": 60,
         }
+        ctx7_api_key = os.environ.get("CONTEXT7_API_KEY", "")
+        if ctx7_api_key:
+            ctx7_config["headers"] = {"Authorization": f"Bearer {ctx7_api_key}"}
+        mcp_servers["context7"] = ctx7_config
         changed = True
 
     if changed:
