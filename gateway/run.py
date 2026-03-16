@@ -267,13 +267,33 @@ def _resolve_hermes_bin() -> Optional[list[str]]:
 
 
 
+def _fetch_soul_from_github() -> str:
+    """Fetch Soul.md from GitHub at startup for injection into system prompt."""
+    import base64
+    import urllib.request as _ur
+    import json as _json
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repo = os.environ.get("HERMES_GITHUB_REPO", "0xMikey-ooze/hermes-agent")
+    if not token:
+        return ""
+    try:
+        req = _ur.Request(
+            f"https://api.github.com/repos/{repo}/contents/SOUL.md",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "hermes-agent",
+            },
+        )
+        with _ur.urlopen(req, timeout=6) as r:
+            data = _json.loads(r.read())
+            return base64.b64decode(data["content"]).decode("utf-8")
+    except Exception:
+        return ""
+
+
 def _inject_agent_context():
-    """Inject persistent context into agent system prompt at startup.
-    
-    Writes task queue awareness + mem0 user ID into HERMES_HOME config so agents
-    always know about pending work and use the right memory namespace.
-    """
-    import os
+    """Inject Soul.md + task queue awareness + mem0 scope into agent system prompt at startup."""
     from pathlib import Path
 
     hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
@@ -285,34 +305,42 @@ def _inject_agent_context():
     if not os.environ.get("MEM0_AGENT_ID"):
         os.environ["MEM0_AGENT_ID"] = "hermes"
 
-    # Build system prompt addon that includes task queue awareness
     try:
         import yaml
         config_path = hermes_home / "config.yaml"
         config = {}
         if config_path.exists():
-            config = yaml.safe_load(config_path.read_text()) or {}
+            try:
+                config = yaml.safe_load(config_path.read_text()) or {}
+            except Exception:
+                config = {}
 
-        task_context = (
+        # Fetch Soul.md from GitHub
+        soul = _fetch_soul_from_github()
+        soul_section = f"\n\n## Soul\n{soul}" if soul else ""
+
+        # Core behavioral additions
+        core = (
+            soul_section +
             "\n\n## Task Queue\n"
-            "You have access to a task queue via the dashboard. "
-            "Check /api/tasks to see pending work. When you complete a task, "
-            "call PATCH /api/tasks/{id} with status=done. "
-            "When you start a task, update status=in_progress.\n\n"
+            "At the start of every session, call list_tasks() to see pending work. "
+            "Pick up in_progress or pending tasks and execute them autonomously. "
+            "When you start a task call update_task_status(id, 'in_progress'). "
+            "When done call update_task_status(id, 'done'). "
+            "After completing a task, call write_reflection() with what you learned. "
+            "Always notify Mikey (Telegram chat_id=1707153874) when a task is complete or blocked.\n\n"
             "## Memory\n"
-            "Use mem0 (via session_search or memory tool) to recall past interactions. "
-            "Proactively search memory for relevant context before answering questions "
-            "about previous work, decisions, or ongoing projects."
+            "Search reflections with read_reflections() before starting hard tasks. "
+            "Use session_search or memory tool to recall past interactions."
         )
-        existing = config.get("agent", {}).get("system_prompt", "") or ""
-        if "Task Queue" not in existing:
-            if "agent" not in config:
-                config["agent"] = {}
-            config["agent"]["system_prompt"] = (existing + task_context).strip()
-            config_path.write_text(yaml.dump(config, default_flow_style=False))
+
+        if "agent" not in config:
+            config["agent"] = {}
+        config["agent"]["system_prompt"] = core.strip()
+        config_path.write_text(yaml.dump(config, default_flow_style=False, allow_unicode=True))
     except Exception as e:
         import logging
-        logging.getLogger(__name__).debug("Context injection failed: %s", e)
+        logging.getLogger(__name__).warning("Context injection failed: %s", e)
 
 
 def _ensure_mcp_config():
