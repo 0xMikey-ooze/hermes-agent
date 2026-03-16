@@ -1,0 +1,48 @@
+{
+  "team-1": {
+    "name": "Backend",
+    "branch": "fix/railway-deploy",
+    "owns": [
+      "gateway/run.py",
+      "gateway/platforms/telegram.py",
+      "gateway/platforms/base.py",
+      "tools/tirith_security.py",
+      "railway.toml"
+    ],
+    "reads": [
+      "gateway/web_api.py",
+      "gateway/health.py",
+      "gateway/config.py",
+      "gateway/status.py",
+      ".env.example"
+    ]
+  },
+  "team-2": {
+    "name": "Frontend",
+    "branch": null,
+    "owns": [],
+    "reads": [
+      "gateway/web_api.py"
+    ],
+    "notes": "No frontend changes required for this fix. All bugs are backend/infrastructure."
+  },
+  "team-3": {
+    "name": "QA",
+    "branch": "fix/railway-deploy-tests",
+    "owns": [
+      "tests/gateway/test_health_handoff.py",
+      "tests/gateway/test_telegram_conflict_retry.py",
+      "tests/tools/test_tirith_disabled.py",
+      "tests/test_railway_config.py",
+      "tests/gateway/test_railway_startup_integration.py"
+    ],
+    "reads": [
+      "gateway/run.py",
+      "gateway/platforms/telegram.py",
+      "tools/tirith_security.py",
+      "railway.toml",
+      "tests/gateway/",
+      "tests/tools/"
+    ]
+  }
+}
