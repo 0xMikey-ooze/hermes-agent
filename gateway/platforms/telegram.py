@@ -139,7 +139,11 @@ class TelegramAdapter(BasePlatformAdapter):
             "Make sure only one gateway instance is running for this bot token."
         )
         logger.error("[%s] %s Original error: %s", self.name, message, error)
-        self._set_fatal_error("telegram_polling_conflict", message, retryable=False)
+        # Mark as RETRYABLE during rolling deploys (e.g. Railway): the old
+        # container will stop within seconds, after which the new one can
+        # start polling cleanly. Non-retryable would kill the gateway
+        # permanently and prevent the new container from ever connecting.
+        self._set_fatal_error("telegram_polling_conflict", message, retryable=True)
         try:
             if self._app and self._app.updater:
                 await self._app.updater.stop()
