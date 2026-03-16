@@ -125,7 +125,7 @@ def get_task_handler(params: Dict[str, Any], **_) -> str:
 
 
 def update_task_status_handler(params: Dict[str, Any], **_) -> str:
-    """Update a task's status."""
+    """Update a task's status and log to activity feed."""
     task_id = params.get("task_id", "")
     new_status = params.get("status", "")
     note = params.get("note", "")
@@ -145,6 +145,25 @@ def update_task_status_handler(params: Dict[str, Any], **_) -> str:
 
     r = rows[0]
     note_str = f" — {note}" if note else ""
+
+    # Log to activity feed (events table)
+    event_type = {
+        "in_progress": "task_started",
+        "done": "task_completed",
+        "blocked": "task_blocked",
+        "cancelled": "task_blocked",
+    }.get(new_status, "task_status_changed")
+    try:
+        payload = {"id": r["id"], "title": r["title"], "status": new_status}
+        if note:
+            payload["note"] = note
+        _db_exec(
+            "INSERT INTO events (event_type, payload, created_at) VALUES ($1, $2::jsonb, NOW())",
+            (event_type, __import__("json").dumps(payload)),
+        )
+    except Exception as e:
+        logger.debug("Event log failed: %s", e)
+
     return f"✅ Task updated: [{r['status'].upper()}] {r['title']} (id: {r['id']}){note_str}"
 
 

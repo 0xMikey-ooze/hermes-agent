@@ -526,18 +526,41 @@ function connectSSE(){
   };
   sse.onerror=()=>document.getElementById('ev-status').textContent='Reconnecting...';
 }
+function fmtEvent(d){
+  if(typeof d==='string'){try{d=JSON.parse(d);}catch(e){return d.slice(0,120);}}
+  const t=d.event_type||d.type||'';const p=d.payload||{};const title=p.title||p.id||'';
+  if(t==='task_created')return '📋 New task: '+title.slice(0,60);
+  if(t==='task_started')return '🔄 Working on: '+title.slice(0,60);
+  if(t==='task_completed')return '✅ Done: '+title.slice(0,60)+(p.note?' — '+p.note:'');
+  if(t==='task_blocked')return '🚫 Blocked: '+title.slice(0,60)+(p.note?' — '+p.note:'');
+  if(t==='task_status_changed')return '↪ '+( title||'task')+' → '+(p.status||'?');
+  if(t==='agent_message')return '💬 '+(p.text||'').slice(0,80);
+  if(t==='chat')return '💬 Chat: '+(p.message||'').slice(0,60);
+  if(t==='reflection')return '🧠 Learned: '+(p.lesson||'').slice(0,80);
+  if(t)return t+': '+(title||JSON.stringify(p).slice(0,60));
+  return JSON.stringify(d).slice(0,120);
+}
+async function loadActivity(){
+  try{
+    const r=await fetch(BASE+'/api/activity');const d=await r.json();
+    const events=d.events||[];
+    evLog=events.map(e=>({ts:new Date(e.created_at||Date.now()).toLocaleTimeString(),msg:fmtEvent(e)}));
+    renderEvents();
+  }catch(e){}
+}
 function renderEvents(){
   const el=document.getElementById('act-feed');
   el.innerHTML=evLog.length?evLog.map(e=>`<div class="ev-item"><span class="ev-ts">${e.ts}</span><span class="ev-msg">${e.msg}</span></div>`).join(''):'<div class="ev-empty">Waiting for events...</div>';
-  document.getElementById('ev-status').textContent='Stream active -- '+evLog.length+' events';
+  document.getElementById('ev-status').textContent=evLog.length+' events';
 }
 
 async function init(){
   await loadStatus();
   await Promise.all([loadTasks(),loadRepos()]);
   connectSSE();
-  setInterval(loadStatus,15000);
-  setInterval(loadTasks,8000);
+  setInterval(loadStatus,5000);
+  setInterval(loadTasks,3000);
+  setInterval(loadActivity,4000);
 }
 init();
 </script>
