@@ -66,7 +66,7 @@ def _db_available() -> bool:
 
 # ── tool handlers ─────────────────────────────────────────────────────────────
 
-def list_tasks_handler(params: Dict[str, Any], **_) -> str:
+def list_tasks_handler(params: Dict[str, Any] = None, status: str = None, limit: int = 20, **_) -> str:
     """Return all tasks as formatted text the agent can read."""
     status_filter = params.get("status")  # optional: "pending", "in_progress", "done"
 
@@ -97,7 +97,7 @@ def list_tasks_handler(params: Dict[str, Any], **_) -> str:
     return "\n\n".join(lines)
 
 
-def get_task_handler(params: Dict[str, Any], **_) -> str:
+def get_task_handler(params: Dict[str, Any] = None, task_id: str = "", **_) -> str:
     """Return a single task in full detail."""
     task_id = params.get("task_id", "")
     if not task_id:
@@ -167,7 +167,7 @@ def update_task_status_handler(params: Dict[str, Any], **_) -> str:
     return f"✅ Task updated: [{r['status'].upper()}] {r['title']} (id: {r['id']}){note_str}"
 
 
-def create_task_handler(params: Dict[str, Any], **_) -> str:
+def create_task_handler(params: Dict[str, Any] = None, title: str = "", description: str = "", priority: str = "normal", repo: str = "", agent: str = "", **_) -> str:
     """Create a new task in the queue from chat."""
     title = params.get("title", "").strip()
     description = params.get("description", "").strip()
@@ -190,7 +190,7 @@ def create_task_handler(params: Dict[str, Any], **_) -> str:
     return f"✅ Task created: {r['title']} (id: {r['id']}, status: {r['status']})"
 
 
-def query_db_handler(params: Dict[str, Any], **_) -> str:
+def query_db_handler(params: Dict[str, Any] = None, sql: str = "", **_) -> str:
     """Run a read-only SQL SELECT query against the Neon database."""
     sql = params.get("sql", "").strip()
     if not sql:

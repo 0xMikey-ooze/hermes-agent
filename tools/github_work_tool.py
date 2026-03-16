@@ -53,11 +53,13 @@ def _run(cmd: str, cwd: str, timeout: int = 60) -> Dict[str, Any]:
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
-def github_clone_handler(params: Dict[str, Any], **_) -> str:
+def github_clone_handler(params: Dict[str, Any] = None, repo: str = "", branch: str = "main", **_) -> str:
     """Clone a GitHub repo into a temp workspace."""
     import shutil as _shutil
-    repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
-    branch = params.get("branch", "main")
+    if params is None: params = {}
+    repo = repo or params.get("repo", "")
+    branch = branch or params.get("branch", "main")
+    repo = repo.strip().lstrip("https://github.com/").lstrip("/")
 
     if not repo:
         return "❌ repo is required (e.g. '0xMikey-ooze/believers-bookshelf-portal-dashboard')"
@@ -103,10 +105,11 @@ def github_clone_handler(params: Dict[str, Any], **_) -> str:
     return f"✅ Cloned {repo} → {dest}\n{ls['stdout'][:600]}{pkg}"
 
 
-def github_ls_handler(params: Dict[str, Any], **_) -> str:
+def github_ls_handler(params: Dict[str, Any] = None, repo: str = "", path: str = "", **_) -> str:
     """List files in the cloned workspace."""
-    repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
-    subpath = params.get("path", "").strip("/")
+    if params is None: params = {}
+    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
+    subpath = (path or params.get("path", "")).strip("/")
 
     ws = _workspace(repo)
     if not ws:
@@ -117,10 +120,11 @@ def github_ls_handler(params: Dict[str, Any], **_) -> str:
     return result["stdout"] or result["stderr"]
 
 
-def github_read_handler(params: Dict[str, Any], **_) -> str:
+def github_read_handler(params: Dict[str, Any] = None, repo: str = "", file_path: str = "", **_) -> str:
     """Read a file from the workspace."""
-    repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
-    file_path = params.get("file_path", "").strip("/")
+    if params is None: params = {}
+    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
+    file_path = (file_path or params.get("file_path", "")).strip("/")
 
     if not file_path:
         return "❌ file_path is required"
@@ -139,11 +143,13 @@ def github_read_handler(params: Dict[str, Any], **_) -> str:
     return content
 
 
-def github_exec_handler(params: Dict[str, Any], **_) -> str:
+def github_exec_handler(params: Dict[str, Any] = None, repo: str = "", command: str = "", timeout: int = 60, **_) -> str:
     """Run a shell command in the workspace."""
-    repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
-    cmd = params.get("command", "").strip()
-    timeout = int(params.get("timeout", 60))
+    if params is None: params = {}
+    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
+    cmd = command or params.get("command", "")
+    cmd = cmd.strip()
+    timeout = int(timeout or params.get("timeout", 60))
 
     if not cmd:
         return "❌ command is required"
@@ -163,11 +169,12 @@ def github_exec_handler(params: Dict[str, Any], **_) -> str:
     return "\n".join(parts)
 
 
-def github_push_handler(params: Dict[str, Any], **_) -> str:
+def github_push_handler(params: Dict[str, Any] = None, repo: str = "", message: str = "", branch: str = "main", **_) -> str:
     """Commit and push changes in the workspace back to GitHub."""
-    repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
-    message = params.get("message", "chore: agent update").strip()
-    branch = params.get("branch", "main")
+    if params is None: params = {}
+    repo = (repo or params.get("repo", "")).strip().lstrip("https://github.com/").lstrip("/")
+    message = (message or params.get("message", "chore: agent update")).strip()
+    branch = branch or params.get("branch", "main")
 
     ws = _workspace(repo)
     if not ws:
