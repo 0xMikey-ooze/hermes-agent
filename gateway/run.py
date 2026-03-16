@@ -920,7 +920,13 @@ class GatewayRunner:
         try:
             from gateway.web_api import HermesWebAPI
             _agi_client = getattr(self, "agi_client", None)
-            _dashboard_port = int(os.getenv("DASHBOARD_PORT", "3001"))
+            # On Railway (and other PaaS), $PORT is the required HTTP port for
+            # health checks and public routing. Fall back to DASHBOARD_PORT,
+            # then 3001 for local dev.
+            _dashboard_port = int(
+                os.getenv("PORT")
+                or os.getenv("DASHBOARD_PORT", "3001")
+            )
             _web_api = HermesWebAPI(
                 agi_client=_agi_client,
                 config=self.config,
