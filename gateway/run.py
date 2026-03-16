@@ -34,6 +34,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Resolve Hermes home directory (respects HERMES_HOME override)
 _hermes_home = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
+_early_health_runner = None  # Set by start_gateway(), consumed by runner.start()
+_active_runner = None  # Set to GatewayRunner once started; used by web_api webhook route
 
 # Load environment variables from ~/.hermes/.env first.
 # User-managed env files should override stale shell exports on restart.
@@ -930,6 +932,23 @@ class GatewayRunner:
         try:
             from gateway.web_api import HermesWebAPI
             _agi_client = getattr(self, "agi_client", None)
+            # On Railway (and other PaaS), $PORT is the required HTTP port for
+            # health checks and public routing. Fall back to DASHBOARD_PORT,
+            # then 3001 for local dev.
+            _dashboard_port = int(
+                os.getenv("PORT")
+                or os.getenv("DASHBOARD_PORT", "3001")
+            )
+            # Stop early health server so HermesWebAPI can bind the same port
+            import gateway.run as _run_mod
+            _early = getattr(_run_mod, "_early_health_runner", None)
+            if _early is not None:
+                try:
+                    await _early.cleanup()
+                    logger.info("Early health server stopped; handing port %d to HermesWebAPI", _dashboard_port)
+                except Exception as _cleanup_err:
+                    logger.debug("Early health runner cleanup: %s", _cleanup_err)
+                _run_mod._early_health_runner = None
             _web_api = HermesWebAPI(
                 agi_client=_agi_client,
                 config=self.config,
@@ -4592,6 +4611,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         await _aiohttp_web.TCPSite(_early_runner, "0.0.0.0", _early_port).start()
         _early_log.info("Early health server listening on port %d", _early_port)
         print(f"[hermes] Health server listening on port {_early_port}", flush=True)
+        # Store on module so runner.start() can clean it up before HermesWebAPI starts
+        import gateway.run as _self_mod
+        _self_mod._early_health_runner = _early_runner
     except Exception as _early_err:
         print(f"[hermes] Early health server failed: {_early_err}", flush=True)
 
@@ -4633,6 +4655,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     _check_agi_integration()
 
     runner = GatewayRunner(config)
+
+    # Expose active runner for webhook route in HermesWebAPI
+    import gateway.run as _self
+    _self._active_runner = runner
 
     # Set up signal handlers
     def signal_handler():

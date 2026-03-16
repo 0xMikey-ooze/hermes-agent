@@ -357,6 +357,10 @@ class HermesWebAPI:
         app = web.Application(middlewares=[self._auth_middleware, self._cors_middleware])
 
         # Status
+        # Health / liveness routes for Railway and other PaaS health checks
+        app.router.add_get("/", self._handle_health)
+        app.router.add_get("/health", self._handle_health)
+
         app.router.add_get("/api/status", self._handle_status)
         app.router.add_options("/api/status", self._handle_options)
 
@@ -390,7 +394,47 @@ class HermesWebAPI:
         app.router.add_get("/api/events", self._handle_events)
         app.router.add_options("/api/events", self._handle_options)
 
+        # Telegram webhook endpoint — receives POST updates from Telegram
+        # when TELEGRAM_WEBHOOK_URL is configured.
+        app.router.add_post("/telegram/webhook", self._handle_telegram_webhook)
+
         return app
+
+    async def _handle_telegram_webhook(self, request: "web.Request") -> "web.Response":
+        """Accept incoming Telegram updates and forward to the Telegram adapter."""
+        try:
+            data = await request.json()
+        except Exception:
+            return web.Response(status=400, text="bad json")
+
+        # Locate the telegram adapter via the gateway runner if available
+        try:
+            from gateway.run import GatewayRunner  # noqa: F401
+            runner = getattr(self, "_runner_ref", None)
+            if runner is None:
+                # Try to find it from the config stored on self
+                from gateway import run as _run
+                runner = getattr(_run, "_active_runner", None)
+
+            if runner is not None:
+                for adapter in getattr(runner, "_adapters", []):
+                    if hasattr(adapter, "handle_webhook_update"):
+                        await adapter.handle_webhook_update(data)
+                        break
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("Telegram webhook dispatch error: %s", exc)
+
+        # Always return 200 to Telegram so it doesn't retry
+        return web.Response(status=200, text="ok")
+
+    async def _handle_health(self, request: "web.Request") -> "web.Response":
+        """Health check endpoint for Railway / PaaS liveness probes."""
+        return web.Response(
+            text='{"status":"ok","service":"hermes-gateway"}',
+            content_type="application/json",
+            headers=self._cors_headers(),
+        )
 
     async def _handle_options(self, request: "web.Request") -> "web.Response":
         """Handle CORS preflight OPTIONS requests."""
