@@ -357,6 +357,10 @@ class HermesWebAPI:
         app = web.Application(middlewares=[self._auth_middleware, self._cors_middleware])
 
         # Status
+        # Health / liveness routes for Railway and other PaaS health checks
+        app.router.add_get("/", self._handle_health)
+        app.router.add_get("/health", self._handle_health)
+
         app.router.add_get("/api/status", self._handle_status)
         app.router.add_options("/api/status", self._handle_options)
 
@@ -423,6 +427,14 @@ class HermesWebAPI:
 
         # Always return 200 to Telegram so it doesn't retry
         return web.Response(status=200, text="ok")
+
+    async def _handle_health(self, request: "web.Request") -> "web.Response":
+        """Health check endpoint for Railway / PaaS liveness probes."""
+        return web.Response(
+            text='{"status":"ok","service":"hermes-gateway"}',
+            content_type="application/json",
+            headers=self._cors_headers(),
+        )
 
     async def _handle_options(self, request: "web.Request") -> "web.Response":
         """Handle CORS preflight OPTIONS requests."""
