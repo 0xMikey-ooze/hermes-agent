@@ -1410,8 +1410,8 @@ class HermesWebAPI:
             from gateway.platforms.base import MessageEvent
 
             source = SessionSource(
-                platform=Platform.TELEGRAM,
-                chat_id="web-dashboard",
+                platform=Platform.LOCAL,
+                chat_id="dashboard",
                 user_id="dashboard",
                 user_name="Dashboard",
                 chat_type="dm",
@@ -1645,8 +1645,8 @@ class HermesWebAPI:
                 return self._json({"response": "Agent not ready — gateway not started yet."})
 
             source = SessionSource(
-                platform=Platform.TELEGRAM,
-                chat_id="web-dashboard",
+                platform=Platform.LOCAL,
+                chat_id="dashboard",
                 user_id="dashboard",
                 user_name="Dashboard",
                 chat_type="dm",
