@@ -27,6 +27,23 @@ try:
 except ImportError:  # pragma: no cover
     web = None  # type: ignore[assignment]
 
+# DB layer — gracefully disabled if psycopg2/DATABASE_URL not available
+try:
+    from gateway.db import (
+        tasks_list as db_tasks_list,
+        task_get as db_task_get,
+        task_upsert as db_task_upsert,
+        task_update_status as db_task_update_status,
+        task_delete as db_task_delete,
+        event_log as db_event_log,
+        events_list as db_events_list,
+        skill_upsert as db_skill_upsert,
+        is_available as db_available,
+    )
+except Exception:
+    db_tasks_list = db_task_get = db_task_upsert = db_task_update_status = None
+    db_task_delete = db_event_log = db_events_list = db_skill_upsert = db_available = None
+
 _START_TIME = time.time()
 _DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
