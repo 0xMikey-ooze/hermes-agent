@@ -55,6 +55,7 @@ def _run(cmd: str, cwd: str, timeout: int = 60) -> Dict[str, Any]:
 
 def github_clone_handler(params: Dict[str, Any], **_) -> str:
     """Clone a GitHub repo into a temp workspace."""
+    import shutil as _shutil
     repo = params.get("repo", "").strip().lstrip("https://github.com/").lstrip("/")
     branch = params.get("branch", "main")
 
@@ -64,6 +65,10 @@ def github_clone_handler(params: Dict[str, Any], **_) -> str:
     token = _get_token()
     if not token:
         return "❌ GITHUB_TOKEN not set — cannot clone private repos."
+
+    # Verify git is available
+    if not _shutil.which("git"):
+        return "❌ git is not installed in this environment. Container needs rebuild with git."
 
     # Reuse existing workspace if already cloned
     if repo in _WORKSPACES and Path(_WORKSPACES[repo]).exists():
