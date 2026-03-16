@@ -4566,6 +4566,33 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
             )
             return False
 
+    # ── Early HTTP health server (Railway/PaaS) ───────────────────────
+    # Start a minimal aiohttp server on $PORT immediately so Railway's
+    # health check passes even while Telegram is still connecting.
+    # The full HermesWebAPI replaces this once the gateway is ready.
+    _early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
+    try:
+        from aiohttp import web as _aiohttp_web
+        import logging as _logging
+        _early_log = _logging.getLogger("hermes.health")
+
+        async def _health(request):
+            return _aiohttp_web.Response(
+                text='{"status":"starting","service":"hermes-gateway"}',
+                content_type="application/json",
+            )
+
+        _early_app = _aiohttp_web.Application()
+        _early_app.router.add_get("/", _health)
+        _early_app.router.add_get("/health", _health)
+        _early_runner = _aiohttp_web.AppRunner(_early_app)
+        await _early_runner.setup()
+        await _aiohttp_web.TCPSite(_early_runner, "0.0.0.0", _early_port).start()
+        _early_log.info("Early health server listening on port %d", _early_port)
+        print(f"[hermes] Health server listening on port {_early_port}", flush=True)
+    except Exception as _early_err:
+        print(f"[hermes] Early health server failed: {_early_err}", flush=True)
+
     # Sync bundled skills on gateway start (fast -- skips unchanged)
     try:
         from tools.skills_sync import sync_skills
@@ -4585,6 +4612,11 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     file_handler.setFormatter(RedactingFormatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
     logging.getLogger().addHandler(file_handler)
     logging.getLogger().setLevel(logging.INFO)
+
+    # Also log to stdout so Railway/PaaS can capture logs
+    _stdout_handler = logging.StreamHandler()
+    _stdout_handler.setFormatter(RedactingFormatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
+    logging.getLogger().addHandler(_stdout_handler)
 
     # Separate errors-only log for easy debugging
     error_handler = RotatingFileHandler(
