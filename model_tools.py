@@ -226,6 +226,16 @@ def get_tool_definitions(
         for ts_name in get_all_toolsets():
             tools_to_include.update(resolve_toolset(ts_name))
 
+    # Always inject MCP server tools (mcp-* toolsets are registered dynamically
+    # at startup and are not statically listed in hermes-* toolsets).
+    try:
+        from tools.registry import registry as _reg
+        for _tn, _entry in list(_reg._tools.items()):
+            if _entry.toolset.startswith("mcp-"):
+                tools_to_include.add(_tn)
+    except Exception:
+        pass
+
     # Ask the registry for schemas (only returns tools whose check_fn passes)
     filtered_tools = registry.get_definitions(tools_to_include, quiet=quiet_mode)
 

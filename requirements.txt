@@ -43,3 +43,5 @@ aiohttp>=3.9.0
 mem0ai
 
 exa-py
+
+mcp
