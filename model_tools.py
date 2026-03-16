@@ -27,6 +27,7 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 
 from tools.registry import registry
+from tools.hermes_tasks_tool import list_tasks_handler  # noqa: F401 — registers on import
 from toolsets import resolve_toolset, validate_toolset
 
 logger = logging.getLogger(__name__)
@@ -228,11 +229,15 @@ def get_tool_definitions(
 
     # Always inject MCP server tools (mcp-* toolsets are registered dynamically
     # at startup and are not statically listed in hermes-* toolsets).
+    # Also inject hermes-tasks so the agent always has task queue access.
     try:
         from tools.registry import registry as _reg
+        from toolsets import resolve_toolset as _resolve
         for _tn, _entry in list(_reg._tools.items()):
             if _entry.toolset.startswith("mcp-"):
                 tools_to_include.add(_tn)
+        for _tn in _resolve("hermes-tasks"):
+            tools_to_include.add(_tn)
     except Exception:
         pass
 
