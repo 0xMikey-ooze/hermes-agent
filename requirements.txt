@@ -39,6 +39,5 @@ python-telegram-bot>=20.0
 discord.py>=2.0
 aiohttp>=3.9.0
 
-# Optional: mem0 — intelligent memory layer (+26% accuracy over OpenAI Memory)
-# pip install mem0ai  (self-hosted, uses OPENAI_API_KEY)
-# mem0ai
+# mem0 — intelligent memory layer (+26% accuracy over OpenAI Memory)
+mem0ai

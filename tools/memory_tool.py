@@ -190,6 +190,19 @@ class MemoryStore:
         self._set_entries(target, entries)
         self.save_to_disk(target)
 
+        # Sync to mem0 — non-blocking, best-effort
+        try:
+            from tools.mem0_bridge import mem0_add as _m0_add
+            import threading as _threading
+            _threading.Thread(
+                target=_m0_add,
+                args=(content,),
+                kwargs={"metadata": {"target": target, "source": "hermes-memory"}},
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
+
         return self._success_response(target, "Entry added.")
 
     def replace(self, target: str, old_text: str, new_content: str) -> Dict[str, Any]:

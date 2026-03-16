@@ -211,6 +211,20 @@ def session_search(
         )
 
         if not raw_results:
+            # Fallback: try mem0 for cross-session semantic memory
+            try:
+                from tools.mem0_bridge import mem0_search as _m0_search
+                m0_results = _m0_search(query, limit=limit)
+                if m0_results:
+                    return json.dumps({
+                        "success": True,
+                        "query": query,
+                        "results": m0_results,
+                        "count": len(m0_results),
+                        "source": "mem0",
+                    }, ensure_ascii=False)
+            except Exception:
+                pass
             return json.dumps({
                 "success": True,
                 "query": query,
