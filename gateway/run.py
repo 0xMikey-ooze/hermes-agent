@@ -180,6 +180,11 @@ from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageTyp
 
 logger = logging.getLogger(__name__)
 
+# Module-level port resolution: Railway sets $PORT dynamically.
+# Fall back to $DASHBOARD_PORT (dev convenience), then 3001.
+_early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
+_dashboard_port = _early_port
+
 
 def _resolve_runtime_agent_kwargs() -> dict:
     """Resolve provider credentials for gateway-created AIAgent instances."""
@@ -4571,6 +4576,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     # health check passes even while Telegram is still connecting.
     # The full HermesWebAPI replaces this once the gateway is ready.
     _early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
+    # Module-level dashboard port — used by HermesWebAPI and must match _early_port
+    # to avoid binding two servers to the same port.
+    _dashboard_port = _early_port
     try:
         from aiohttp import web as _aiohttp_web
         import logging as _logging
