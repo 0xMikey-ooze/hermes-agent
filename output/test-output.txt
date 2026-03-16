@@ -1,24 +1,56 @@
-TDD GREEN phase: All 26 tests pass (3 bug-related test files)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /private/tmp/swarm-local-20260315-232322-26058/team-3
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 37 items
 
-tests/test_port_env_var.py: 8 passed
-tests/gateway/test_telegram_conflict.py: 3 passed
-tests/test_tirith_optional_install.py: 15 passed
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_uses_port_env_var_when_set PASSED [  2%]
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_falls_back_to_dashboard_port PASSED [  5%]
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_defaults_to_3001_when_no_env PASSED [  8%]
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_port_is_not_hardcoded_8080 PASSED [ 10%]
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_port_env_var_takes_precedence_over_dashboard_port PASSED [ 13%]
+tests/test_port_env_var.py::TestPortEnvVarResolution::test_port_env_var_is_integer PASSED [ 16%]
+tests/test_port_env_var.py::TestNoPortConflict::test_early_port_matches_dashboard_port PASSED [ 18%]
+tests/test_port_env_var.py::TestNoPortConflict::test_web_api_host_port_from_env PASSED [ 21%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_detects_conflict_by_class_name PASSED [ 24%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_detects_conflict_by_getupdates_message PASSED [ 27%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_detects_conflict_by_another_instance_message PASSED [ 29%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_ignores_unrelated_errors PASSED [ 32%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_ignores_generic_runtime_error PASSED [ 35%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictDetection::test_case_insensitive_detection PASSED [ 37%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_conflict_marked_retryable PASSED [ 40%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_conflict_not_marked_fatal_permanently PASSED [ 43%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_conflict_stops_updater PASSED [ 45%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_conflict_notifies_fatal_error_system PASSED [ 48%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_idempotent_when_already_in_conflict PASSED [ 51%]
+tests/test_telegram_polling_conflict.py::TestPollingConflictHandler::test_updater_stop_failure_does_not_crash PASSED [ 54%]
+tests/test_telegram_polling_conflict.py::TestPollingErrorCallback::test_non_conflict_error_is_logged_not_handled PASSED [ 56%]
+tests/test_telegram_polling_conflict.py::TestPollingErrorCallback::test_conflict_error_triggers_handler PASSED [ 59%]
+tests/test_tirith_optional_install.py::TestEnsureInstalledGraceful::test_returns_none_when_tirith_disabled PASSED [ 62%]
+tests/test_tirith_optional_install.py::TestEnsureInstalledGraceful::test_returns_none_when_binary_not_found PASSED [ 64%]
+tests/test_tirith_optional_install.py::TestEnsureInstalledGraceful::test_returns_path_when_binary_on_path PASSED [ 67%]
+tests/test_tirith_optional_install.py::TestEnsureInstalledGraceful::test_does_not_raise_on_explicit_path_missing PASSED [ 70%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_unsupported_platform_returns_none PASSED [ 72%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_download_failure_returns_none PASSED [ 75%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_cosign_missing_returns_none PASSED [ 78%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_cosign_artifacts_unavailable PASSED [ 81%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_cosign_verification_failed PASSED [ 83%]
+tests/test_tirith_optional_install.py::TestInstallTirithFailures::test_cosign_exec_failed PASSED [ 86%]
+tests/test_tirith_optional_install.py::TestFailureMarkersAndRetry::test_cosign_missing_is_retryable PASSED [ 89%]
+tests/test_tirith_optional_install.py::TestFailureMarkersAndRetry::test_disk_failure_marker_prevents_repeated_downloads PASSED [ 91%]
+tests/test_tirith_optional_install.py::TestFailureMarkersAndRetry::test_background_install_does_not_block_startup PASSED [ 94%]
+tests/test_tirith_optional_install.py::TestGatewayStartupTirithIntegration::test_gateway_startup_wraps_tirith_in_try_except PASSED [ 97%]
+tests/test_tirith_optional_install.py::TestGatewayStartupTirithIntegration::test_tirith_import_error_does_not_crash_gateway PASSED [100%]
 
-Total: 26 passed, 0 failed
+=============================== warnings summary ===============================
+tests/test_port_env_var.py: 8 warnings
+tests/test_telegram_polling_conflict.py: 8 warnings
+tests/test_tirith_optional_install.py: 15 warnings
+  /private/tmp/swarm-local-20260315-232322-26058/team-3/tests/conftest.py:114: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    loop = asyncio.get_event_loop_policy().get_event_loop()
 
-Fixes applied:
-1. Bug #1 (PORT env var): Added module-level _dashboard_port and _early_port to gateway/run.py
-   - Reads $PORT (Railway PaaS), falls back to $DASHBOARD_PORT, defaults to 3001
-   - Removed duplicate local variable definitions inside methods
-   - _early_port = _dashboard_port (single bind, no conflict)
-
-2. Bug #2 (Telegram 409): Fixed Application lookup in connect() to use dynamic module attribute
-   - getattr(sys.modules[__name__], "Application", Application) ensures monkeypatch works
-   - Resolves test isolation issue when gateway modules are purged and re-imported
-
-3. Bug #3 (Tirith binary): Already implemented correctly — all 15 tests passed without changes
-   - ensure_installed() returns None gracefully on all failure modes
-   - _install_tirith() returns (None, reason) tuples for each failure type
-   - Background install thread doesn't block startup
-   - Disk failure markers prevent repeated downloads for 24h
-   - cosign_missing failures are retryable
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 37 passed, 31 warnings in 0.16s ========================

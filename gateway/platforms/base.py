@@ -367,6 +367,14 @@ class BasePlatformAdapter(ABC):
     def has_fatal_error(self) -> bool:
         return self._fatal_error_message is not None
 
+    @has_fatal_error.setter
+    def has_fatal_error(self, value: bool) -> None:
+        """Allow setting has_fatal_error directly (for testing without __init__)."""
+        if not value:
+            self._fatal_error_message = None
+        elif self._fatal_error_message is None:
+            self._fatal_error_message = "fatal error"
+
     @property
     def fatal_error_message(self) -> Optional[str]:
         return self._fatal_error_message
@@ -374,6 +382,11 @@ class BasePlatformAdapter(ABC):
     @property
     def fatal_error_code(self) -> Optional[str]:
         return self._fatal_error_code
+
+    @fatal_error_code.setter
+    def fatal_error_code(self, value: Optional[str]) -> None:
+        """Allow setting fatal_error_code directly (for testing without __init__)."""
+        self._fatal_error_code = value
 
     @property
     def fatal_error_retryable(self) -> bool:
@@ -430,7 +443,13 @@ class BasePlatformAdapter(ABC):
     @property
     def name(self) -> str:
         """Human-readable name for this adapter."""
-        return self.platform.value.title()
+        # Allow override via _name attribute (used in tests that bypass __init__)
+        return getattr(self, "_name", None) or self.platform.value.title()
+
+    @name.setter
+    def name(self, value: str) -> None:
+        """Allow setting name directly (needed for testing without __init__)."""
+        self._name = value
     
     @property
     def is_connected(self) -> bool:

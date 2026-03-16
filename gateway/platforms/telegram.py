@@ -1170,3 +1170,7 @@ class TelegramAdapter(BasePlatformAdapter):
             message_id=str(message.message_id),
             timestamp=message.date,
         )
+
+
+# Alias for test compatibility — tests import TelegramPlatform
+TelegramPlatform = TelegramAdapter
