@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postbuild": "node -e \"const fs=require(\"fs\");const p=\".next/prerender-manifest.json\";if(!fs.existsSync(p))fs.writeFileSync(p,JSON.stringify({version:4,routes:{},dynamicRoutes:{},notFoundRoutes:[],preview:{previewModeId:\"dev\",previewModeSigningKey:\"dev\",previewModeEncryptionKey:\"dev\"}}))\";"
+    "postbuild": "node scripts/ensure-prerender-manifest.js"
   },
   "dependencies": {
     "next": "14.2.29",
