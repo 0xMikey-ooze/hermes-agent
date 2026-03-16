@@ -1,5 +1,6 @@
-37 passed, 31 warnings in 0.91s — ALL TESTS GREEN
+37 passed, 31 warnings in 0.92s
 
-tests/test_port_env_var.py: 8/8 passed
-tests/test_telegram_polling_conflict.py: 14/14 passed
-tests/test_tirith_optional_install.py: 15/15 passed
+All 37 Railway deployment tests PASS:
+- 8/8 Port env var tests
+- 14/14 Telegram polling conflict tests
+- 15/15 Tirith optional install tests
