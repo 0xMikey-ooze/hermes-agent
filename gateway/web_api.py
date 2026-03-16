@@ -1370,23 +1370,39 @@ class HermesWebAPI:
 
             runner = getattr(_run, "_active_runner", None)
             if runner is not None:
+                # Server-side repo clone so agent gets a local path, no auth tools needed
+                _local_repo = ""
+                if repo:
+                    try:
+                        import subprocess as _sp
+                        _tok = os.environ.get("GITHUB_TOKEN", "")
+                        _dest = "/tmp/hermes-work/" + repo.split("/")[-1]
+                        if not os.path.exists(_dest):
+                            _curl = f"https://x-access-token:{_tok}@github.com/{repo}.git"
+                            _sp.run(["git","clone","--depth=20",_curl,_dest], capture_output=True, timeout=60)
+                        if os.path.exists(_dest):
+                            _local_repo = _dest
+                    except Exception as _ce:
+                        import logging as _lg; _lg.getLogger(__name__).warning("Clone failed: %s", _ce)
+
                 desc_part = f"\n\nDescription: {description}" if description and description != title else ""
-                repo_clone = (
-                    f"\n\nRepo: {repo}\n"
-                    f"Step 1: Call github_clone(repo='{repo}') to pull the latest code."
-                ) if repo else ""
+                repo_part = (f"\n\nCode at: {_local_repo} (already cloned)" if _local_repo
+                             else (f"\n\nRepo: {repo}" if repo else ""))
                 prompt = (
                     f"TASK ASSIGNED [#{task['id']}]: {title}"
-                    f"{repo_clone}{desc_part}\n\n"
+                    f"{repo_part}{desc_part}\n\n"
                     f"Instructions:\n"
-                    f"1. Call update_task_status('{task['id']}', 'in_progress') immediately\n"
-                    f"2. If repo is set: call github_clone(repo='{repo}') first — never look in /app\n"
-                    f"3. Use github_ls, github_read, github_exec to explore and work in the repo\n"
-                    f"4. Make code changes by writing files then call github_push to commit\n"
-                    f"5. Call update_task_status('{task['id']}', 'done') when complete\n"
-                    f"6. Send a Telegram message to chat_id={MIKEY_TG} summarizing what you did\n"
-                    f"7. Call write_reflection() with what you learned\n"
-                    f"If blocked, call update_task_status('{task['id']}', 'blocked') and notify Mikey."
+                    f"1. update_task_status('{task['id']}', 'in_progress') immediately\n"
+                    f"2. Code is at {_local_repo or repo}. Use terminal tool to explore and run commands:\n"
+                    f"   terminal(command='ls {_local_repo}')\n"
+                    f"   terminal(command='cat {_local_repo}/package.json')\n"
+                    f"   terminal(command='cd {_local_repo} && npm test 2>&1 | tail -30')\n"
+                    f"3. Edit files with write_file or patch tool\n"
+                    f"4. Commit: terminal(command='cd {_local_repo} && git add -A && git commit -m \'fix\' && git push')\n"
+                    f"5. update_task_status('{task['id']}', 'done') when complete\n"
+                    f"6. Send Telegram to chat_id=1707153874 with what you did\n"
+                    f"7. write_reflection() with lessons learned\n"
+                    f"If blocked: update_task_status('{task['id']}', 'blocked') + Telegram Mikey."
                 )
                 source = SessionSource(
                     platform=Platform.LOCAL,

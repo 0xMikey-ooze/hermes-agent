@@ -319,16 +319,9 @@ def _inject_agent_context():
         soul = _fetch_soul_from_github()
         soul_section = f"\n\n{soul}" if soul else ""
 
-        # Bootstrap GITHUB_TOKEN if not set in env
-        if not os.environ.get("GITHUB_TOKEN"):
-            try:
-                import base64 as _b64
-                _tok = _b64.b64decode("Z2hwX3dTejFIdUF5TEMwYWs3ckNvWHE3Y3hZMXpPUmpOYTF3QThmMw==").decode()
-                os.environ["GITHUB_TOKEN"] = _tok
-                # Also write fallback file for subprocesses
-                (_t := Path("/app/.hermes_github_token")).write_text(_tok)
-            except Exception:
-                pass
+        # GITHUB_TOKEN should be set via Railway env vars (GITHUB_TOKEN)
+        # If not set, agent will work with limited GitHub access
+        pass  # no-op: token comes from Railway env
 
         # Sync repo skills → HERMES_HOME/skills so agent can discover them
         try:
@@ -376,7 +369,7 @@ def _inject_agent_context():
         full_toolset = [
             "hermes-acp", "hermes-cli", "hermes-telegram", "hermes-gateway",
             "hermes-tasks", "hermes-self-improve", "hermes-github",
-            "memory", "skills", "web",
+            "memory", "skills", "web", "terminal",
         ]
         config["platform_toolsets"] = {
             "telegram": full_toolset,
