@@ -1345,6 +1345,7 @@ class HermesWebAPI:
             text=_DASHBOARD_HTML,
             content_type="text/html",
             charset="utf-8",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
         )
 
     async def _handle_health(self, request: "web.Request") -> "web.Response":
