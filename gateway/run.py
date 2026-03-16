@@ -317,26 +317,66 @@ def _inject_agent_context():
 
         # Fetch Soul.md from GitHub
         soul = _fetch_soul_from_github()
-        soul_section = f"\n\n## Soul\n{soul}" if soul else ""
+        soul_section = f"\n\n{soul}" if soul else ""
+
+        # Sync repo skills → HERMES_HOME/skills so agent can discover them
+        try:
+            import shutil as _shutil
+            repo_skills = Path("/app/skills")
+            home_skills = hermes_home / "skills"
+            home_skills.mkdir(parents=True, exist_ok=True)
+            if repo_skills.exists():
+                for skill_dir in repo_skills.iterdir():
+                    if skill_dir.is_dir():
+                        dest = home_skills / skill_dir.name
+                        if not dest.exists():
+                            _shutil.copytree(str(skill_dir), str(dest))
+        except Exception:
+            pass
 
         # Core behavioral additions
         core = (
             soul_section +
-            "\n\n## Task Queue\n"
-            "At the start of every session, call list_tasks() to see pending work. "
-            "Pick up in_progress or pending tasks and execute them autonomously. "
-            "When you start a task call update_task_status(id, 'in_progress'). "
-            "When done call update_task_status(id, 'done'). "
-            "After completing a task, call write_reflection() with what you learned. "
-            "Always notify Mikey (Telegram chat_id=1707153874) when a task is complete or blocked.\n\n"
+            "\n\n## Core Instructions\n"
+            "At the start of every session: call list_tasks() to check pending work. "
+            "Pick up pending/in_progress tasks and execute them autonomously. "
+            "When starting a task: call update_task_status(id, 'in_progress'). "
+            "When done: update_task_status(id, 'done'), then Telegram Mikey (chat_id=1707153874). "
+            "After every task: write_reflection() with lessons learned.\n\n"
+            "## GitHub Work\n"
+            "To work on ANY code task: call github_clone(repo='owner/repo') FIRST. "
+            "Never look in /app for user project code. Always clone the repo. "
+            "Use github_read, github_exec, github_push to read/run/commit.\n\n"
+            "## Tools Available\n"
+            "list_tasks, get_task, update_task_status, create_task, query_db — task queue\n"
+            "github_clone, github_ls, github_read, github_exec, github_push — code work\n"
+            "write_reflection, read_reflections, skill_manage, commit_skill — self-improvement\n"
+            "exa_search, web_search, web_extract — research\n"
+            "send_message — Telegram/Slack messaging\n\n"
             "## Memory\n"
-            "Search reflections with read_reflections() before starting hard tasks. "
-            "Use session_search or memory tool to recall past interactions."
+            "call read_reflections() before hard tasks. Use memory tool for past context."
         )
 
         if "agent" not in config:
             config["agent"] = {}
         config["agent"]["system_prompt"] = core.strip()
+
+        # Give ALL platforms access to ALL tools
+        full_toolset = [
+            "hermes-acp", "hermes-cli", "hermes-telegram", "hermes-gateway",
+            "hermes-tasks", "hermes-self-improve", "hermes-github",
+            "memory", "skills", "web",
+        ]
+        config["platform_toolsets"] = {
+            "telegram": full_toolset,
+            "local": full_toolset,
+            "cli": full_toolset,
+            "discord": full_toolset,
+            "slack": full_toolset,
+            "whatsapp": full_toolset,
+            "signal": full_toolset,
+            "email": full_toolset,
+        }
         config_path.write_text(yaml.dump(config, default_flow_style=False, allow_unicode=True))
     except Exception as e:
         import logging
