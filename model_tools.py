@@ -28,6 +28,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from tools.registry import registry
 from tools.hermes_tasks_tool import list_tasks_handler  # noqa: F401 — registers on import
+from tools.self_improve_tool import write_reflection_handler  # noqa: F401 — registers on import
 from toolsets import resolve_toolset, validate_toolset
 
 logger = logging.getLogger(__name__)
@@ -237,6 +238,8 @@ def get_tool_definitions(
             if _entry.toolset.startswith("mcp-"):
                 tools_to_include.add(_tn)
         for _tn in _resolve("hermes-tasks"):
+            tools_to_include.add(_tn)
+        for _tn in _resolve("hermes-self-improve"):
             tools_to_include.add(_tn)
     except Exception:
         pass

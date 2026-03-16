@@ -319,6 +319,10 @@ TOOLSETS = {
         "description": "Task queue management — list, get, update, create tasks and query the Neon DB directly",
         "tools": ["list_tasks", "get_task", "update_task_status", "create_task", "query_db"],
     },
+    "hermes-self-improve": {
+        "description": "Self-improvement: write reflections, recall lessons, update soul, commit skills, diagnose gaps",
+        "tools": ["write_reflection", "read_reflections", "update_soul", "commit_skill", "self_diagnose"],
+    },
 }
 
 
