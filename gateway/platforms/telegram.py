@@ -1169,5 +1169,5 @@ class TelegramAdapter(BasePlatformAdapter):
         )
 
 
-# Alias for backward compatibility — tests and external code may use TelegramPlatform
+# Backward-compatible alias used by tests and external consumers.
 TelegramPlatform = TelegramAdapter
