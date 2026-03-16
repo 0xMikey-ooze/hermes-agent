@@ -184,8 +184,11 @@ class TelegramAdapter(BasePlatformAdapter):
                 self._set_fatal_error("telegram_token_lock", message, retryable=False)
                 return False
 
-            # Build the application
-            self._app = Application.builder().token(self.config.token).build()
+            # Build the application.
+            # Look up Application from the current module so monkeypatching
+            # works even if the module was reloaded between import and call.
+            _Application = getattr(sys.modules[__name__], "Application", Application)
+            self._app = _Application.builder().token(self.config.token).build()
             self._bot = self._app.bot
             
             # Register handlers

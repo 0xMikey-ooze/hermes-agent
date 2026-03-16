@@ -180,11 +180,15 @@ from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageTyp
 
 logger = logging.getLogger(__name__)
 
-# Module-level port resolution for Railway/PaaS deployments.
-# $PORT is the required HTTP port on Railway (dynamic). Falls back to
-# $DASHBOARD_PORT for local dev, then 3001 as final default.
-_early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
-_dashboard_port = _early_port
+# Resolve the HTTP port once at module level so tests can inspect it.
+# On Railway (and other PaaS), $PORT is the required HTTP port for
+# health checks and public routing. Fall back to DASHBOARD_PORT,
+# then 3001 for local dev.
+_dashboard_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
+
+# The early health server and the full web API share the same port
+# to avoid bind conflicts on Railway.
+_early_port = _dashboard_port
 
 
 def _resolve_runtime_agent_kwargs() -> dict:
@@ -926,12 +930,6 @@ class GatewayRunner:
         try:
             from gateway.web_api import HermesWebAPI
             _agi_client = getattr(self, "agi_client", None)
-            # Re-resolve port at runtime so rolling deploy picks up new $PORT.
-            global _dashboard_port
-            _dashboard_port = int(
-                os.getenv("PORT")
-                or os.getenv("DASHBOARD_PORT", "3001")
-            )
             _web_api = HermesWebAPI(
                 agi_client=_agi_client,
                 config=self.config,
@@ -4575,11 +4573,6 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     # Start a minimal aiohttp server on $PORT immediately so Railway's
     # health check passes even while Telegram is still connecting.
     # The full HermesWebAPI replaces this once the gateway is ready.
-    global _early_port
-    _early_port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "3001"))
-    # Module-level dashboard port — used by HermesWebAPI and must match _early_port
-    # to avoid binding two servers to the same port.
-    _dashboard_port = _early_port
     try:
         from aiohttp import web as _aiohttp_web
         import logging as _logging
