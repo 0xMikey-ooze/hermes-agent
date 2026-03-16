@@ -35,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Resolve Hermes home directory (respects HERMES_HOME override)
 _hermes_home = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
 _early_health_runner = None  # Set by start_gateway(), consumed by runner.start()
+_active_runner = None  # Set to GatewayRunner once started; used by web_api webhook route
 
 # Load environment variables from ~/.hermes/.env first.
 # User-managed env files should override stale shell exports on restart.
@@ -4645,6 +4646,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     _check_agi_integration()
 
     runner = GatewayRunner(config)
+
+    # Expose active runner for webhook route in HermesWebAPI
+    import gateway.run as _self
+    _self._active_runner = runner
 
     # Set up signal handlers
     def signal_handler():

@@ -227,24 +227,47 @@ class TelegramAdapter(BasePlatformAdapter):
                 self._handle_media_message
             ))
             
-            # Start polling in background
+            # Start in webhook mode if TELEGRAM_WEBHOOK_URL is set, else polling.
+            # Webhook mode is preferred for PaaS (Railway) because it eliminates
+            # 409 conflicts — Telegram sends updates to ONE URL regardless of
+            # how many other instances try to poll.
+            webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL", "").strip()
+
             await self._app.initialize()
             await self._app.start()
-            loop = asyncio.get_running_loop()
 
-            def _polling_error_callback(error: Exception) -> None:
-                if not self._looks_like_polling_conflict(error):
-                    logger.error("[%s] Telegram polling error: %s", self.name, error, exc_info=True)
-                    return
-                if self._polling_error_task and not self._polling_error_task.done():
-                    return
-                self._polling_error_task = loop.create_task(self._handle_polling_conflict(error))
+            if webhook_url:
+                # Webhook mode — no polling; updates arrive via POST /telegram/webhook
+                # Delete any existing webhook first, then register the new one.
+                await self._bot.delete_webhook(drop_pending_updates=True)
+                await self._bot.set_webhook(
+                    url=webhook_url,
+                    allowed_updates=list(Update.ALL_TYPES),
+                    drop_pending_updates=True,
+                )
+                # Expose a method so HermesWebAPI can feed us incoming updates
+                self._webhook_mode = True
+                logger.info(
+                    "[%s] Webhook registered: %s — polling disabled", self.name, webhook_url
+                )
+            else:
+                # Polling mode (local dev / fallback)
+                self._webhook_mode = False
+                loop = asyncio.get_running_loop()
 
-            await self._app.updater.start_polling(
-                allowed_updates=Update.ALL_TYPES,
-                drop_pending_updates=True,
-                error_callback=_polling_error_callback,
-            )
+                def _polling_error_callback(error: Exception) -> None:
+                    if not self._looks_like_polling_conflict(error):
+                        logger.error("[%s] Telegram polling error: %s", self.name, error, exc_info=True)
+                        return
+                    if self._polling_error_task and not self._polling_error_task.done():
+                        return
+                    self._polling_error_task = loop.create_task(self._handle_polling_conflict(error))
+
+                await self._app.updater.start_polling(
+                    allowed_updates=Update.ALL_TYPES,
+                    drop_pending_updates=True,
+                    error_callback=_polling_error_callback,
+                )
             
             # Register bot commands so Telegram shows a hint menu when users type /
             try:
@@ -280,7 +303,8 @@ class TelegramAdapter(BasePlatformAdapter):
                 )
             
             self._mark_connected()
-            logger.info("[%s] Connected and polling for Telegram updates", self.name)
+            mode = "webhook" if getattr(self, "_webhook_mode", False) else "polling"
+            logger.info("[%s] Connected and listening for Telegram updates (mode=%s)", self.name, mode)
             return True
             
         except Exception as e:
@@ -292,7 +316,23 @@ class TelegramAdapter(BasePlatformAdapter):
                     pass
             logger.error("[%s] Failed to connect to Telegram: %s", self.name, e, exc_info=True)
             return False
-    
+
+    async def handle_webhook_update(self, data: dict) -> None:
+        """Process a raw Telegram update dict received via webhook POST.
+
+        Called by HermesWebAPI when TELEGRAM_WEBHOOK_URL is set and an
+        incoming POST arrives at /telegram/webhook.
+        """
+        if not self._app:
+            logger.warning("[%s] handle_webhook_update called but app not initialized", self.name)
+            return
+        try:
+            from telegram import Update
+            update = Update.de_json(data, self._bot)
+            await self._app.update_queue.put(update)
+        except Exception as exc:
+            logger.error("[%s] Failed to enqueue webhook update: %s", self.name, exc, exc_info=True)
+
     async def disconnect(self) -> None:
         """Stop polling, cancel pending album flushes, and disconnect."""
         pending_media_group_tasks = list(self._media_group_tasks.values())
