@@ -606,7 +606,7 @@ function appendMsg(role,text){
   const msgs=document.getElementById('chat-msgs');
   const d=document.createElement('div');d.className='msg '+role;
   const sender=role==='user'?'You':'Hermes Core';
-  d.innerHTML=`<span class="msg-sender">${sender} • ${ts()}</span><p class="msg-content">${text.replace(/\n/g,'<br>')}</p>`;
+  d.innerHTML=`<span class="msg-sender">${sender} • ${ts()}</span><p class="msg-content">${text.replace(/\\n/g,'<br>')}</p>`;
   msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
 }
 function showTyping(){
