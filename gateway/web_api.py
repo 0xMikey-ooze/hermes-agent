@@ -360,6 +360,7 @@ class HermesWebAPI:
         # Health / liveness routes for Railway and other PaaS health checks
         app.router.add_get("/", self._handle_health)
         app.router.add_get("/health", self._handle_health)
+        app.router.add_get("/dashboard", self._handle_dashboard)
 
         app.router.add_get("/api/status", self._handle_status)
         app.router.add_options("/api/status", self._handle_options)
