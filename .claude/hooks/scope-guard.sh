@@ -17,7 +17,7 @@ if [ -z "$FILE" ] || [ "$FILE" = "null" ]; then
 fi
 
 # Read current team identity (written by swarm.js teamScript before claude runs)
-TEAM_FILE="/tmp/swarm-local-20260315-232322-26058/test-architect/.swarm/current-team.txt"
+TEAM_FILE="/tmp/swarm-local-20260315-232322-26058/team-1/.swarm/current-team.txt"
 if [ ! -f "$TEAM_FILE" ]; then
   # No team file — can't enforce scope, allow
   exit 0
@@ -100,7 +100,7 @@ esac
 echo ""
 echo "⚠️  SCOPE GUARD: File '$FILE' is outside your team scope (team: $TEAM)."
 echo ""
-echo "   Document needed changes in /tmp/swarm-local-20260315-232322-26058/test-architect/.swarm/cross-team-requests.md:"
+echo "   Document needed changes in /tmp/swarm-local-20260315-232322-26058/team-1/.swarm/cross-team-requests.md:"
 echo "   - File: $FILE"
 echo "   - What change is needed and why"
 echo "   - Which team owns this file"
