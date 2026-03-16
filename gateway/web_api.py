@@ -992,6 +992,12 @@ class HermesWebAPI:
 
 
 
+
+    async def _handle_activity(self, request: "web.Request") -> "web.Response":
+        """Return recent event log for activity feed."""
+        events = list(getattr(self, "_event_log", []))[-100:]
+        return self._json({"events": events})
+
     async def _handle_get_tasks(self, request: "web.Request") -> "web.Response":
         return self._json({"tasks": self._read_tasks()})
 
@@ -1111,6 +1117,12 @@ class HermesWebAPI:
             return self._json({"response": f"Error: {exc}"})
 
 
+
+
+    async def _handle_activity(self, request: "web.Request") -> "web.Response":
+        """Return recent event log for activity feed."""
+        events = list(getattr(self, "_event_log", []))[-100:]
+        return self._json({"events": events})
 
     async def _handle_get_tasks(self, request: "web.Request") -> "web.Response":
         return self._json({"tasks": self._read_tasks()})
