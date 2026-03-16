@@ -45,3 +45,4 @@ mem0ai
 exa-py
 
 mcp
+psycopg2-binary

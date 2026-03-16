@@ -594,6 +594,9 @@ class HermesWebAPI:
         self.repos_file.write_text(json.dumps(repos, indent=2), encoding="utf-8")
 
     def _read_tasks(self) -> List[Dict]:
+        """Read tasks — DB first, fall back to local JSON file."""
+        if db_tasks_list and db_available and db_available():
+            return db_tasks_list()
         try:
             if self.tasks_file.exists():
                 return json.loads(self.tasks_file.read_text(encoding="utf-8"))
@@ -602,8 +605,16 @@ class HermesWebAPI:
         return []
 
     def _write_tasks(self, tasks: List[Dict]) -> None:
-        self.tasks_file.parent.mkdir(parents=True, exist_ok=True)
-        self.tasks_file.write_text(json.dumps(tasks, indent=2), encoding="utf-8")
+        """Write tasks — always write to both DB and local JSON."""
+        if db_task_upsert and db_available and db_available():
+            for t in tasks:
+                db_task_upsert(t)
+        # Also keep local copy as backup
+        try:
+            self.tasks_file.parent.mkdir(parents=True, exist_ok=True)
+            self.tasks_file.write_text(json.dumps(tasks, indent=2), encoding="utf-8")
+        except OSError:
+            pass
 
     def _config_value(self, key: str, default: Any = None) -> Any:
         if isinstance(self.config, dict):
@@ -935,8 +946,26 @@ class HermesWebAPI:
         skill_dir.mkdir(parents=True, exist_ok=True)
         (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
 
+        if db_skill_upsert and db_available and db_available():
+            db_skill_upsert(skill_name, skill_content, source_url=raw_url)
         return self._json({"ok": True, "skill": skill_name, "path": str(skill_dir / "SKILL.md"),
                            "bytes": len(skill_content)})
+
+    async def _handle_db_status(self, request: "web.Request") -> "web.Response":
+        """Return DB connectivity + stats."""
+        if not db_available or not db_available():
+            return self._json({"connected": False, "reason": "DATABASE_URL not set or psycopg2 not installed"})
+        from gateway.db import events_list as _el, tasks_list as _tl, skills_list as _sl
+        try:
+            task_count = len(_tl() or [])
+            event_count = len(_el(limit=1000) or [])
+            skill_count = len(_sl() or [])
+            return self._json({
+                "connected": True,
+                "tables": {"tasks": task_count, "events": event_count, "skills": skill_count},
+            })
+        except Exception as exc:
+            return self._json({"connected": True, "error": str(exc)})
 
     def create_app(self) -> "web.Application":
         """Create and return the aiohttp Application."""
@@ -979,6 +1008,7 @@ class HermesWebAPI:
         app.router.add_get("/api/github/repos", self._handle_github_repos)
         app.router.add_post("/api/github/sync", self._handle_github_sync)
         app.router.add_post("/api/skills/import", self._handle_skill_import)
+        app.router.add_get("/api/db/status", self._handle_db_status)
         app.router.add_options("/api/github/repos", self._handle_options)
 
         app.router.add_get("/api/status", self._handle_status)
@@ -1053,8 +1083,11 @@ class HermesWebAPI:
 
 
     async def _handle_activity(self, request: "web.Request") -> "web.Response":
-        """Return recent event log for activity feed."""
-        events = list(getattr(self, "_event_log", []))[-100:]
+        """Return recent event log for activity feed — DB first, in-memory fallback."""
+        if db_events_list and db_available and db_available():
+            events = db_events_list(limit=100)
+        else:
+            events = list(getattr(self, "_event_log", []))[-100:]
         return self._json({"events": events})
 
 
@@ -1256,6 +1289,8 @@ class HermesWebAPI:
         tasks = self._read_tasks()
         tasks.append(task)
         self._write_tasks(tasks)
+        if db_event_log and db_available and db_available():
+            db_event_log("task_created", payload={"id": task.get("id"), "title": title, "repo": repo})
 
         # Auto-dispatch to agent
         try:
@@ -1347,8 +1382,11 @@ class HermesWebAPI:
 
 
     async def _handle_activity(self, request: "web.Request") -> "web.Response":
-        """Return recent event log for activity feed."""
-        events = list(getattr(self, "_event_log", []))[-100:]
+        """Return recent event log for activity feed — DB first, in-memory fallback."""
+        if db_events_list and db_available and db_available():
+            events = db_events_list(limit=100)
+        else:
+            events = list(getattr(self, "_event_log", []))[-100:]
         return self._json({"events": events})
 
 
