@@ -1,20 +1,31 @@
 """
-MemoryBridge — unified search across Hermes native memory and AGI MemoryStore.
+MemoryBridge — unified search across Hermes native memory, AGI MemoryStore,
+and mem0 (https://github.com/mem0ai/mem0).
 
 Does NOT modify memory_tool.py. Instead, provides a drop-in augmentation:
   from tools.memory_bridge import memory_bridge_search, memory_bridge_store
 
-When native memory returns results → return them immediately (fast path).
-When native memory returns nothing → fall back to AGI MemoryStore.
-When both return results → merge, deduplicate by content similarity.
+Search priority (first non-empty result wins):
+  1. Native memory (fast path — local file/SQLite)
+  2. AGI MemoryStore (if AGI_SERVER_URL is set)
+  3. mem0 search (if MEM0_API_KEY or OPENAI_API_KEY is set)
+
+On store: writes to native memory + syncs to AGI blackboard + adds to mem0.
+All remote backends are optional, timeout-guarded, and fail silently.
 
 This means:
 - Skills/sessions that used Hermes native memory: still work
 - Skills/sessions that used AGI MemoryStore: still work
-- Cross-session search works: native miss → AGI fallback finds it
+- Cross-session search works: native miss → AGI fallback → mem0 fallback
+- mem0 provides multi-level memory (user/session/agent) with +26% accuracy
+  over OpenAI Memory and 90% fewer tokens than full-context approaches
 
-Store path: memory_bridge_store() writes to native memory AND posts the
-content to AGI MemoryStore via blackboard so the next AGI server can index it.
+Configure mem0 via env vars (see tools/mem0_bridge.py for full docs):
+  MEM0_API_KEY     API key for Mem0 Platform (https://app.mem0.ai)
+  MEM0_USER_ID     User ID for memory scoping (default: hermes-{username})
+  MEM0_AGENT_ID    Agent ID (default: hermes)
+  -- OR --
+  OPENAI_API_KEY   Used automatically for self-hosted mem0 (no account needed)
 """
 import logging
 import os
@@ -94,7 +105,10 @@ def memory_bridge_search(
     limit: int = 5,
 ) -> List[Dict]:
     """
-    Search native memory first; fall back to AGI MemoryStore if empty.
+    Search memory across all configured backends (native → AGI → mem0).
+
+    Priority: native (fast path) → AGI MemoryStore → mem0 search.
+    Returns as soon as any backend yields results, keeping latency low.
 
     Args:
         native_search_fn: Callable that accepts (query, limit) and returns list
@@ -124,13 +138,26 @@ def memory_bridge_search(
     if native_norm:
         return native_norm[:limit]
 
-    # Fallback: try AGI MemoryStore
+    # Fallback 1: try AGI MemoryStore
     try:
         agi = _search_agi(query, limit)
     except Exception as e:
         logger.warning("AGI memory fallback raised: %s", e)
         agi = []
-    merged = _dedup(native_norm + agi)
+
+    if agi:
+        merged = _dedup(native_norm + agi)
+        return merged[:limit]
+
+    # Fallback 2: try mem0 (multi-level memory — user/session/agent)
+    try:
+        from tools.mem0_bridge import mem0_search
+        mem0 = mem0_search(query, limit)
+    except Exception as e:
+        logger.debug("mem0 search fallback raised: %s", e)
+        mem0 = []
+
+    merged = _dedup(native_norm + agi + mem0)
     return merged[:limit]
 
 
@@ -140,7 +167,7 @@ def memory_bridge_store(
     content: str,
 ) -> bool:
     """
-    Store in native memory AND sync to AGI MemoryStore via blackboard.
+    Store in native memory, sync to AGI MemoryStore, and add to mem0.
 
     Args:
         native_store_fn: Callable that accepts (key, content)
@@ -168,5 +195,12 @@ def memory_bridge_store(
             client.blackboard_post("memory/learnings", {"key": key, "content": content})
         except Exception as e:
             logger.debug("AGI memory sync failed (non-critical): %s", e)
+
+    # Best-effort: add to mem0 (multi-level persistent memory)
+    try:
+        from tools.mem0_bridge import mem0_add
+        mem0_add(content, metadata={"key": key, "source": "hermes"})
+    except Exception as e:
+        logger.debug("mem0 add failed (non-critical): %s", e)
 
     return native_ok

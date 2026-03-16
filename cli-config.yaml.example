@@ -660,6 +660,29 @@ delegation:
 # honcho: {}
 
 # =============================================================================
+# mem0 — Intelligent memory layer for AI agents (https://github.com/mem0ai/mem0)
+# +26% accuracy over OpenAI Memory · 91% faster · 90% fewer tokens
+#
+# Two ways to use:
+#   Self-hosted (no account, uses your existing OPENAI_API_KEY):
+#     pip install mem0ai
+#     # that's it — mem0 auto-uses OPENAI_API_KEY
+#
+#   Cloud (zero infra, managed):
+#     pip install mem0ai
+#     MEM0_API_KEY=your-key   # from https://app.mem0.ai
+#
+# Set in ~/.hermes/.env:
+#   MEM0_API_KEY=your-cloud-api-key   # cloud mode
+#   MEM0_USER_ID=jesse                # optional custom user ID
+#   MEM0_AGENT_ID=hermes              # optional custom agent ID
+#
+# How it integrates:
+#   - memory_bridge_store() automatically adds every write to mem0
+#   - memory_bridge_search() falls back to mem0 when native + AGI miss
+#   - All calls are timeout-guarded and fail silently if unconfigured
+
+# =============================================================================
 # Display
 # =============================================================================
 display:
