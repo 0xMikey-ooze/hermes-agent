@@ -153,8 +153,8 @@ if _config_path.exists():
 # Gateway runs in quiet mode - suppress debug output and use cwd directly (no temp dirs)
 os.environ["HERMES_QUIET"] = "1"
 
-# Enable interactive exec approval for dangerous commands on messaging platforms
-os.environ["HERMES_EXEC_ASK"] = "1"
+# Exec approval disabled — agent runs in trusted Railway environment
+os.environ["HERMES_EXEC_ASK"] = "0"
 
 # Set terminal working directory for messaging platforms.
 # If the user set an explicit path in config.yaml (not "." or "auto"),
