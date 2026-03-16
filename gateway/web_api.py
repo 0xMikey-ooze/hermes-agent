@@ -340,16 +340,16 @@ async function loadTasks(){
 function renderTasks(){
   const el=document.getElementById('task-list');
   if(!allTasks.length){el.innerHTML='<div class="col-empty">No tasks assigned</div>';return;}
-  const sorted=[...allTasks].sort((a,b)=>{const o={in_progress:0,backlog:1,done:2};return(o[a.status]||1)-(o[b.status]||1);});
+  const sorted=[...allTasks].sort((a,b)=>{const o={in_progress:0,pending:1,backlog:1,done:2};return(o[a.status]||1)-(o[b.status]||1);});
   el.innerHTML=sorted.map(t=>{
     const isA=t.status==='in_progress',isDone=t.status==='done';
-    const lbl=isA?'Processing':isDone?'Completed':'Pending';
-    return `<div class="task-item${isA?' active':''}${t.status==='backlog'?' pending':''}">
-      <div class="t-meta"><span class="sdot"></span>${lbl}</div>
+    const isPending=t.status==='pending';const lbl=isA?'Processing':isDone?'Completed':isPending?'Pending':'Queued';
+    return `<div class="task-item${isA?' active':''}${t.status==='pending'||t.status==='backlog'?' pending':''}">
+      <div class="t-meta"><span class="sdot"></span>${lbl} <span style="opacity:.45;font-size:.65rem;margin-left:6px">#${(t.id||'').slice(-6)}</span></div>
       <div>
         <div class="t-name">${t.title}</div>
         ${t.description?`<div class="t-info">${t.description}</div>`:''}
-        <div class="t-info" style="margin-top:3px">${t.repo||'no repo'} &middot; ${timeAgo(t.created_at||t.updated_at)}</div>
+        <div class="t-info" style="margin-top:3px">${t.repo||''} ${t.repo?'&middot;':''} ${timeAgo(t.created_at||t.updated_at)}</div>
         <div class="t-actions">
           ${isA?`<button class="lnk accent" onclick="moveTask('${t.id}','done')">Mark Done</button>`:''}
           ${t.status==='backlog'?`<button class="lnk accent" onclick="moveTask('${t.id}','in_progress')">Start</button>`:''}

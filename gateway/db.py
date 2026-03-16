@@ -105,13 +105,13 @@ def task_get(task_id: str) -> Optional[Dict]:
 
 def task_upsert(task: Dict) -> bool:
     sql = """
-        INSERT INTO tasks (id, title, description, status, priority, agent, result, created_at, updated_at)
-        VALUES (%(id)s, %(title)s, %(description)s, %(status)s, %(priority)s, %(agent)s, %(result)s, NOW(), NOW())
+        INSERT INTO tasks (id, title, description, status, priority, agent, result, repo, created_at, updated_at)
+        VALUES (%(id)s, %(title)s, %(description)s, %(status)s, %(priority)s, %(agent)s, %(result)s, %(repo)s, NOW(), NOW())
         ON CONFLICT (id) DO UPDATE SET
             title=EXCLUDED.title, description=EXCLUDED.description,
             status=EXCLUDED.status, priority=EXCLUDED.priority,
             agent=EXCLUDED.agent, result=EXCLUDED.result,
-            updated_at=NOW()
+            repo=EXCLUDED.repo, updated_at=NOW()
     """
     result = _exec(sql, {
         "id": task.get("id"),
@@ -121,6 +121,7 @@ def task_upsert(task: Dict) -> bool:
         "priority": task.get("priority", "normal"),
         "agent": task.get("agent"),
         "result": task.get("result"),
+        "repo": task.get("repo", ""),
     })
     return result is not None
 
