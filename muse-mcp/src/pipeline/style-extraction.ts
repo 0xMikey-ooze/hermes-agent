@@ -29,7 +29,11 @@ Rules:
 - Be concrete. "warm, editorial" beats "nice, modern".
 - Pick 4-6 palette swatches max, covering real on-screen color, not assumptions.
 - Do not invent components you cannot see.
-- distinctive_choices must call out specific craft decisions (typography-image offset, color pairing, empty-space rhythm, etc.). This field is the anti-slop signal.`;
+- distinctive_choices must call out specific craft decisions (typography-image offset, color pairing, empty-space rhythm, etc.). This field is the anti-slop signal.
+- If the image is a LOGO/MARK, use:
+  - "layout.archetype" = mark type (e.g. "geometric emblem", "illustrative mascot", "abstract monogram", "typographic wordmark", "badge lockup").
+  - "components" = concrete logo elements you can see (e.g. "monogram initial", "scissor iconography", "circular badge", "custom ligature", "horizontal lockup").
+  - "distinctive_choices" = shape-language cues that make the mark specific — line weight, negative-space trick, corner radius, optical tweaks, custom lettering traits.`;
 
 // Stage 3 — extract structured style tokens for a batch of references, in
 // bounded parallel. Results are attached to the reference cache so repeat

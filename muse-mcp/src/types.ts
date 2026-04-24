@@ -1,6 +1,11 @@
 // Core data model for Muse. Every pipeline stage reads/writes these shapes.
 
-export type Scope = "landing_page" | "app_ui" | "component" | "full_site";
+export type Scope =
+  | "landing_page"
+  | "app_ui"
+  | "component"
+  | "full_site"
+  | "logo";
 
 export type Density = "sparse" | "balanced" | "dense";
 

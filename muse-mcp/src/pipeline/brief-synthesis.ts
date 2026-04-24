@@ -12,7 +12,7 @@ import type {
 } from "../types.js";
 import { log } from "../util/logger.js";
 
-const SYSTEM = `You are a senior design director synthesizing a structured design brief.
+const SYSTEM_WEB = `You are a senior design director synthesizing a structured design brief.
 
 Given:
 - an intent (category, audience, mood, density, constraints, anti-patterns)
@@ -39,7 +39,44 @@ Rules:
 - The direction must feel specific to the category and audience. Avoid generic SaaS voice unless the category genuinely is SaaS.
 - Pull concrete values from the reference style_tokens (palettes, archetypes). Don't invent colors that aren't present across the cluster.
 - Anti-patterns: be specific. "no centered hero with purple gradient", "no three-tier pricing with middle highlighted", etc.
-- Respect the caller's taste signals if given — boost liked patterns, avoid rejected ones.`;
+- Respect the caller's taste signals if given — boost liked patterns, avoid rejected ones.
+- INSPIRATION, NOT IMITATION. Describe a direction the designer can build ORIGINALLY. Do not reproduce any single reference's layout, copy, imagery, or trade dress. If two directions would end up too close to a single ref, differentiate them.`;
+
+const SYSTEM_LOGO = `You are a senior brand designer synthesizing a LOGO DIRECTION from a cluster of mark references.
+
+Given:
+- an intent (brand category, audience, mood, era, constraints, anti-patterns)
+- a cluster of logo references with extracted style tokens
+- optional taste signals from the caller
+
+Produce ONE direction as JSON:
+{
+  "name": "short memorable direction name — 2-4 words",
+  "palette": [{"hex": "#rrggbb", "role": "bg" | "fg" | "accent" | "muted"}],
+  "typography": {
+    "headline": {"family": "string or null suggestion for the wordmark or wordmark-style", "weight": "e.g. 700", "style": "e.g. humanist-sans, slab-serif, cursive-script, geometric-sans"},
+    "body": {"family": "string or null (secondary usage)", "weight": "e.g. 400"},
+    "pairing_vibe": "1 line — how the headline/wordmark pairs with supporting type"
+  },
+  "layout": {
+    "archetype": "logo archetype, e.g. circular badge + serif wordmark, abstract monogram, typographic-only wordmark, illustrative mascot, geometric emblem",
+    "density": "sparse|balanced|dense",
+    "grid": "optional construction grid note, e.g. 12-unit circular grid, golden-ratio square"
+  },
+  "components": [
+    "concrete logo elements this direction uses — e.g. monogram initial, scissor iconography, leaf silhouette, badge lockup, horizontal wordmark lockup, stacked lockup"
+  ],
+  "motion": {"hints": ["short motion cues for an animated mark variant, or empty"]},
+  "anti_patterns": ["specific slop marks to avoid — e.g. no swoosh, no gradient circle with sans-serif, no generic pin-drop"],
+  "reference_whys": [{"id": "<reference id>", "why": "1 sentence on what idea this ref contributes (shape language, grid, weight, humor, etc.)"}]
+}
+
+Rules:
+- Marks must feel category-appropriate AND ORIGINAL. A barbershop logo should not look like a generic food-truck badge.
+- Pull concrete craft cues from the reference style_tokens — line weight, corner radius, grid, negative-space tricks, monoline vs chunky, custom lettering, wordmark character.
+- Anti-patterns must be specific: name the slop shape. "no realistic barber-pole with drop shadow", "no cursive signature with heart dotting the i", etc.
+- INSPIRATION, NOT IMITATION. This is the hard rule. Do NOT describe a logo that reproduces any single reference. Do not lift the exact shape, exact mascot, or exact wordmark of any ref. The brief must yield an original mark that shares LANGUAGE (weight, grid, era, mood) with the cluster, not IDENTITY.
+- Respect taste signals if given — boost liked patterns, avoid rejected ones.`;
 
 export interface SynthesisOptions {
   intent: IntentTags;
@@ -104,9 +141,10 @@ async function synthesizeDirection(
     .filter(Boolean)
     .join("\n\n");
 
+  const system = opts.intent.scope === "logo" ? SYSTEM_LOGO : SYSTEM_WEB;
   const raw = await callText({
     model: config.synthesisModel,
-    system: SYSTEM,
+    system,
     user,
     maxTokens: 2000,
     temperature: 0.5,

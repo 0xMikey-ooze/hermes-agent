@@ -2,7 +2,13 @@ import { callText, parseJsonBlock } from "../llm/anthropic-client.js";
 import { config } from "../config.js";
 import type { IntentTags, Scope } from "../types.js";
 
-const SCOPES: Scope[] = ["landing_page", "app_ui", "component", "full_site"];
+const SCOPES: Scope[] = [
+  "landing_page",
+  "app_ui",
+  "component",
+  "full_site",
+  "logo",
+];
 
 // Stage 1 — convert free-text into structured tags. Haiku-class model.
 // Schema is pinned so downstream source queries are deterministic.
@@ -10,7 +16,7 @@ const SYSTEM = `You convert a natural-language design brief into structured tags
 
 Return ONLY valid JSON matching this exact shape, no prose:
 {
-  "scope": "landing_page" | "app_ui" | "component" | "full_site",
+  "scope": "landing_page" | "app_ui" | "component" | "full_site" | "logo",
   "category": "short category noun phrase",
   "audience": "short audience description",
   "mood": ["3-6 adjectives"],
@@ -23,6 +29,9 @@ Return ONLY valid JSON matching this exact shape, no prose:
 
 Rules:
 - "keywords" should be terms you'd type into a design gallery's search bar.
+- If the scope is "logo", keywords should include the category plus mark
+  variants: e.g. ["barbershop logo", "barbershop logomark", "barbershop
+  wordmark", "barbershop monogram"]. "density" should be "sparse" for logos.
 - If the user gave anti-patterns or constraints in their prompt, surface them.
 - Do not invent brand names.`;
 

@@ -5,7 +5,7 @@ import { z } from "zod";
 export const GenerateBriefInput = z.object({
   prompt: z.string().min(3, "prompt must be at least 3 characters"),
   scope: z
-    .enum(["landing_page", "app_ui", "component", "full_site"])
+    .enum(["landing_page", "app_ui", "component", "full_site", "logo"])
     .optional(),
   hints: z
     .object({
@@ -26,7 +26,7 @@ export const GenerateBriefInput = z.object({
 export const FetchInspirationInput = z.object({
   prompt: z.string().min(3),
   scope: z
-    .enum(["landing_page", "app_ui", "component", "full_site"])
+    .enum(["landing_page", "app_ui", "component", "full_site", "logo"])
     .optional(),
   limit: z.number().int().min(1).max(120).optional(),
   sources: z

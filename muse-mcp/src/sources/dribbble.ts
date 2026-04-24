@@ -28,11 +28,24 @@ export class DribbbleSource implements Source {
   async search({ intent, limit }: SearchArgs): Promise<Reference[]> {
     if (!this.enabled) return [];
 
-    const queries = buildQueries(intent.keywords, intent.category);
+    const isLogo = intent.scope === "logo";
+    const queries = isLogo
+      ? buildLogoQueries(intent.keywords, intent.category, intent.mood)
+      : buildQueries(intent.keywords, intent.category);
+
     const tagSlugs = new Set<string>();
     for (const term of [intent.category, ...intent.keywords, ...intent.mood]) {
       const slug = slugify(term);
       if (slug) tagSlugs.add(slug);
+    }
+    if (isLogo) {
+      // Seed logo-design tag pages so even a vague prompt surfaces real marks.
+      tagSlugs.add("logo");
+      tagSlugs.add("logo-design");
+      tagSlugs.add("logomark");
+      tagSlugs.add("branding");
+      tagSlugs.add("monogram");
+      tagSlugs.add("wordmark");
     }
 
     const urls: string[] = [];
@@ -89,6 +102,41 @@ function buildQueries(keywords: string[], category: string): string[] {
     queries.add(s);
     queries.add(`${s} website`);
     queries.add(`${s} landing page`);
+  }
+  return [...queries];
+}
+
+// Logo-tuned queries. Dribbble's search skews hard toward marks anyway, so
+// we expand each seed with the canonical mark variants designers use as
+// search tags: "logo", "logomark", "wordmark", "monogram", "brand identity".
+// Mood + era modifiers ("vintage barbershop logo") surface much richer
+// inspiration than the bare category alone.
+function buildLogoQueries(
+  keywords: string[],
+  category: string,
+  mood: string[],
+): string[] {
+  const seeds = new Set<string>();
+  if (category) seeds.add(category);
+  for (const k of keywords) seeds.add(k);
+  const variants = ["logo", "logomark", "wordmark", "monogram", "brand identity"];
+  const queries = new Set<string>();
+  for (const seed of seeds) {
+    const s = seed.trim();
+    if (!s) continue;
+    for (const v of variants) {
+      queries.add(`${s} ${v}`);
+    }
+    // Mood-qualified variants surface stronger taste-matched results.
+    for (const m of mood.slice(0, 2)) {
+      const mm = m.trim();
+      if (mm) queries.add(`${mm} ${s} logo`);
+    }
+  }
+  // Fallback: if nothing seeded, at least pull generic logo inspiration.
+  if (queries.size === 0) {
+    queries.add("logo design");
+    queries.add("logomark");
   }
   return [...queries];
 }
