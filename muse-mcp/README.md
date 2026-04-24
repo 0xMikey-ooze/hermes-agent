@@ -172,9 +172,28 @@ All config is env-driven. See `.env.example`.
 | `MUSE_MAX_REFERENCES` | `60` | Cap per call |
 | `MUSE_MAX_EXTRACT_CONCURRENCY` | `4` | Vision calls in parallel |
 
-## Taste learning
+## Taste learning — per-user AND global
 
-Muse learns per-user taste by translating each feedback event into weighted deltas on a bag-of-words profile over mood, components, layout archetype, distinctive choices, and per-role palette colors. Scoring uses `tanh`-squashed average of these weights, so one strong like doesn't dominate forever.
+Muse learns taste at two layers simultaneously:
+
+- **Per-user profile** — personal taste for a given `user_id`.
+- **Global "house" profile** — the shared aggregate across every feedback event Muse has ever seen, stored under the reserved id `__global__`.
+
+Every call to `muse_record_feedback` writes to BOTH layers:
+
+| Layer | Scale | Purpose |
+|-------|-------|---------|
+| User | 1.0 (full) | Personal taste — wins ties, hard-filters rejected refs |
+| Global | 0.4 (dampened) | House taste — learns slowly across users, never hard-bans |
+
+When Muse ranks references for a brief, it scores against a **combined** profile: user weight × 1.0 + global weight × 0.6. That means:
+
+- A brand-new user still benefits from the house taste on their very first brief.
+- A power user's learned preferences still dominate their own work.
+- Consistent signal across many users ("everyone likes warm-editorial") accumulates into the house and shapes future briefs.
+- One user's `reject` does *not* ban a reference for everyone — only their own briefs exclude it.
+
+Feedback events translate into weighted deltas on bag-of-words bags for mood, components, layout archetype, distinctive choices, and per-role palette colors. Scoring uses `tanh`-squashed averages, so one strong like doesn't dominate forever.
 
 ```jsonc
 // Teach Muse you love a reference:
@@ -204,17 +223,34 @@ Muse learns per-user taste by translating each feedback event into weighted delt
   }
 }
 
-// Inspect:
-{ "tool": "muse_get_taste", "arguments": { "user_id": "jesse", "top_n": 8 } }
+// Inspect your personal profile:
+{ "tool": "muse_get_taste", "arguments": { "user_id": "jesse", "view": "user" } }
+
+// Inspect the shared house profile:
+{ "tool": "muse_get_taste", "arguments": { "view": "global", "top_n": 10 } }
+
+// Inspect the blended profile that actually drives ranking:
+{ "tool": "muse_get_taste", "arguments": { "user_id": "jesse", "view": "combined" } }
+
+// Teach the house directly (admin action — writes to global at full scale):
+{
+  "tool": "muse_record_feedback",
+  "arguments": {
+    "user_id": "__global__",
+    "feedback": { "kind": "reference", "reference_id": "...", "verdict": "love" }
+  }
+}
 ```
 
-`reject` hard-excludes that reference from future briefs for this user; `dislike` subtracts weight but doesn't ban. `love` is ~2x a `like`.
+`reject` hard-excludes that reference from future briefs for this user only; `dislike` subtracts weight but doesn't ban. `love` is ~2x a `like`.
 
-Next time you call `muse_generate_brief` with the same `user_id`, Muse will:
+Next time you call `muse_generate_brief` with a `user_id`, Muse will:
 
-1. Filter out rejected references
-2. Rank remaining references by taste score *before* clustering
-3. Include a "caller taste signals" block in the synthesis prompt so the LLM surfaces patterns you've preferred
+1. Filter out references the user has rejected
+2. Rank remaining references by **combined (user + global)** taste score *before* clustering
+3. Include a "caller taste signals" block in the synthesis prompt so the LLM surfaces patterns the combined profile prefers
+
+Anonymous calls (no `user_id`) still benefit from the house taste — the global profile is applied alone.
 
 ## Sources
 

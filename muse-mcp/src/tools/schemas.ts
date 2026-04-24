@@ -71,6 +71,7 @@ export const RecordFeedbackInput = z.object({
 });
 
 export const GetTasteInput = z.object({
-  user_id: z.string().min(1),
+  user_id: z.string().min(1).optional(),
   top_n: z.number().int().min(1).max(50).optional(),
+  view: z.enum(["user", "global", "combined"]).optional(),
 });

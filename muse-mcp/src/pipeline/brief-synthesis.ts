@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../config.js";
 import { callText, parseJsonBlock } from "../llm/anthropic-client.js";
-import { scoreReference, scoreReferenceSet } from "../taste/taste.js";
-import { tasteStore } from "../taste/taste-store.js";
+import {
+  getCombinedProfile,
+  scoreReference,
+  scoreReferenceSet,
+} from "../taste/taste.js";
 import type {
   Brief,
   Direction,
@@ -89,9 +92,12 @@ export interface SynthesisOptions {
 // Stage 4 — cluster references, synthesize one direction per cluster via LLM,
 // rank by taste, package into a Brief.
 export async function synthesizeBrief(opts: SynthesisOptions): Promise<Brief> {
-  const profile = opts.userId ? tasteStore.getOrInit(opts.userId) : undefined;
+  // Combined profile = user + global. Even anonymous calls get house taste.
+  const profile = getCombinedProfile(opts.userId);
 
-  // Filter out references this user has explicitly rejected.
+  // Filter out references the user has explicitly rejected. Global-only
+  // rejections are not tracked as hard-excludes — one user's reject doesn't
+  // ban a reference for everyone.
   const filtered = profile
     ? opts.references.filter((r) => !profile.rejected_references.includes(r.id))
     : opts.references;

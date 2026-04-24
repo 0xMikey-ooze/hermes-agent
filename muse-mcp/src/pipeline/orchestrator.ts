@@ -1,6 +1,5 @@
 import { briefStore } from "../store/brief-store.js";
-import { tasteStore } from "../taste/taste-store.js";
-import { scoreReference } from "../taste/taste.js";
+import { getCombinedProfile, scoreReference } from "../taste/taste.js";
 import type { Brief, Reference, Scope } from "../types.js";
 import { log } from "../util/logger.js";
 import { fetchInspiration } from "./inspiration-fetch.js";
@@ -61,9 +60,10 @@ export async function generateBrief(input: GenerateBriefInput): Promise<Brief> {
   return brief;
 }
 
+// Rank by the combined (user + global) taste profile. Even anonymous calls
+// get the house taste applied — Muse learns overall, not just per-user.
 function rankByTaste(refs: Reference[], userId?: string): Reference[] {
-  if (!userId) return refs;
-  const profile = tasteStore.get(userId);
+  const profile = getCombinedProfile(userId);
   if (!profile || profile.sample_count === 0) return refs;
   const scored = refs.map((r) => ({ r, s: scoreReference(profile, r) }));
   scored.sort((a, b) => b.s - a.s);

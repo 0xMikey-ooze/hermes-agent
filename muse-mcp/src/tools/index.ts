@@ -14,8 +14,9 @@ import { extractStylesForReferences } from "../pipeline/style-extraction.js";
 import { parseIntent } from "../pipeline/intent-parser.js";
 import { briefStore } from "../store/brief-store.js";
 import { referenceCache } from "../store/reference-cache.js";
-import { applyFeedback } from "../taste/taste.js";
+import { applyFeedback, GLOBAL_TASTE_ID, getCombinedProfile } from "../taste/taste.js";
 import { tasteStore } from "../taste/taste-store.js";
+import type { TasteProfile } from "../types.js";
 import { buildSources } from "../sources/registry.js";
 import { referenceDedupeKey } from "../util/hash.js";
 import { config } from "../config.js";
@@ -121,7 +122,7 @@ export const tools: ToolDefinition[] = [
   {
     name: "muse_record_feedback",
     description:
-      "Record like/dislike feedback on a reference or a direction so Muse can learn this user's taste. Verdicts: love, like, meh, dislike, reject. Reject also excludes the reference from future briefs for this user.",
+      "Record like/dislike feedback on a reference or a direction. Verdicts: love, like, meh, dislike, reject. Every event teaches the user's taste profile at full scale AND the shared global 'house' profile at reduced scale — Muse learns overall, not just per user. Reject hard-excludes a reference from future briefs for this user (not globally).",
     inputSchema: zodToJsonSchema(RecordFeedbackInput),
     handler: async (args) => {
       const input = RecordFeedbackInput.parse(args);
@@ -130,33 +131,26 @@ export const tools: ToolDefinition[] = [
         user_id: input.user_id,
         sample_count: result.profile.sample_count,
         affected_references: result.affected_references,
+        global_updated: result.global_updated,
       };
     },
   },
   {
     name: "muse_get_taste",
     description:
-      "Inspect a user's learned taste profile: top liked moods/components/archetypes/palettes and samples count. Useful for debugging and for agents to surface the learned preferences.",
+      "Inspect a learned taste profile. Pass view='user' for per-user taste, view='global' for the shared house taste (accumulated across all users), or view='combined' (default) for the blended profile that actually drives ranking. If view='user' or 'combined' is used, user_id is required.",
     inputSchema: zodToJsonSchema(GetTasteInput),
     handler: async (args) => {
       const input = GetTasteInput.parse(args);
-      const profile = tasteStore.get(input.user_id);
-      if (!profile) {
-        return {
-          user_id: input.user_id,
-          sample_count: 0,
-          top_moods: [],
-          top_components: [],
-          top_archetypes: [],
-          top_distinctive: [],
-          top_palette: {},
-          avoided_moods: [],
-          avoided_components: [],
-        };
-      }
+      const view = input.view ?? (input.user_id ? "combined" : "global");
+      const profile = resolveProfile(view, input.user_id);
       const n = input.top_n ?? 10;
+      if (!profile) {
+        return emptyTasteResponse(view, input.user_id);
+      }
       return {
-        user_id: profile.user_id,
+        view,
+        user_id: view === "global" ? GLOBAL_TASTE_ID : input.user_id,
         updated_at: profile.updated_at,
         sample_count: profile.sample_count,
         top_moods: topN(profile.mood_weights, n),
@@ -172,6 +166,41 @@ export const tools: ToolDefinition[] = [
     },
   },
 ];
+
+function resolveProfile(
+  view: "user" | "global" | "combined",
+  userId: string | undefined,
+): TasteProfile | undefined {
+  if (view === "global") return tasteStore.get(GLOBAL_TASTE_ID);
+  if (view === "user") {
+    if (!userId) {
+      throw new Error("view='user' requires user_id");
+    }
+    return tasteStore.get(userId);
+  }
+  // combined
+  if (!userId) {
+    throw new Error("view='combined' requires user_id (or use view='global')");
+  }
+  return getCombinedProfile(userId);
+}
+
+function emptyTasteResponse(view: string, userId: string | undefined): Record<string, unknown> {
+  return {
+    view,
+    user_id: view === "global" ? GLOBAL_TASTE_ID : userId,
+    sample_count: 0,
+    top_moods: [],
+    top_components: [],
+    top_archetypes: [],
+    top_distinctive: [],
+    top_palette: {},
+    avoided_moods: [],
+    avoided_components: [],
+    liked_references: [],
+    rejected_references: [],
+  };
+}
 
 function topN(bag: Record<string, number>, n: number): Array<{ key: string; weight: number }> {
   return Object.entries(bag)
