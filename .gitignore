@@ -54,3 +54,6 @@ environments/benchmarks/evals/
 # Release script temp files
 .release_notes.md
 .swarm/
+
+# Muse MCP on-disk cache (JSON KV for refs/briefs/taste)
+.muse-cache/
