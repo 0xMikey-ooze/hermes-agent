@@ -48,6 +48,16 @@ except Exception:
     db_task_delete = db_event_log = db_events_list = db_skill_upsert = db_available = None
     db_repos_list = db_repo_upsert = db_repo_delete = None
 
+# Leads pipeline — landing-page form submissions piped through Resend.
+try:
+    from gateway.leads import (
+        LeadsPipeline,
+        build_lead_from_payload,
+    )
+except Exception:  # pragma: no cover - optional dependency on aiohttp
+    LeadsPipeline = None  # type: ignore[assignment,misc]
+    build_lead_from_payload = None  # type: ignore[assignment]
+
 _START_TIME = time.time()
 _DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -599,6 +609,12 @@ class HermesWebAPI:
         self.skills_path = Path(skills_path) if skills_path else _DEFAULT_SKILLS_PATH
         self.cors_origins = cors_origins
         self._runner: Optional[Any] = None
+        # Leads pipeline (landing-page form -> Resend). Available when the
+        # `gateway.leads` module imports cleanly (requires aiohttp).
+        self.leads_pipeline = LeadsPipeline() if LeadsPipeline is not None else None
+        # Per-IP rate limiter for the public POST /api/leads endpoint.
+        # Keyed by client IP -> list of submission timestamps within the window.
+        self._lead_post_history: Dict[str, List[float]] = {}
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -679,11 +695,20 @@ class HermesWebAPI:
 
     # ── Middleware ────────────────────────────────────────────────────────
 
+    # Public endpoints that intentionally bypass DASHBOARD_API_KEY auth.
+    # The lead-capture form is embedded on a static landing page, so it
+    # cannot ship a secret. GET /api/leads (the admin view) still requires
+    # the API key when one is configured.
+    _PUBLIC_ENDPOINTS = {("POST", "/api/leads")}
+
     @web.middleware
     async def _auth_middleware(self, request: "web.Request", handler):
         """Optional API key auth. Skipped when DASHBOARD_API_KEY is not set."""
         # OPTIONS preflight — always allow
         if request.method == "OPTIONS":
+            return await handler(request)
+
+        if (request.method, request.path) in self._PUBLIC_ENDPOINTS:
             return await handler(request)
 
         required_key = self._get_api_key()
@@ -1018,6 +1043,106 @@ class HermesWebAPI:
         except Exception as exc:
             return self._json({"connected": True, "error": str(exc)})
 
+    # ── Leads (origami) ──────────────────────────────────────────────────
+    # Window/limit are intentionally lenient — the form sees small volumes,
+    # this is just a first line of defense against accidental floods.
+    _LEAD_RATE_WINDOW_SEC = 60.0
+    _LEAD_RATE_MAX_PER_WINDOW = 5
+
+    def _client_ip(self, request: "web.Request") -> str:
+        # Trust X-Forwarded-For from a single upstream proxy (Railway, Cloudflare).
+        fwd = request.headers.get("X-Forwarded-For", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
+        peer = request.remote or "unknown"
+        return peer
+
+    def _lead_rate_limit(self, ip: str) -> bool:
+        """Return True if the caller is under the per-IP submission cap."""
+        now = time.time()
+        window_start = now - self._LEAD_RATE_WINDOW_SEC
+        history = [t for t in self._lead_post_history.get(ip, []) if t >= window_start]
+        if len(history) >= self._LEAD_RATE_MAX_PER_WINDOW:
+            self._lead_post_history[ip] = history
+            return False
+        history.append(now)
+        self._lead_post_history[ip] = history
+        return True
+
+    async def _handle_post_leads(self, request: "web.Request") -> "web.Response":
+        """Public endpoint for landing-page lead submissions."""
+        if self.leads_pipeline is None or build_lead_from_payload is None:
+            return self._error("leads pipeline unavailable", status=503)
+
+        ip = self._client_ip(request)
+        if not self._lead_rate_limit(ip):
+            return self._error("rate limit exceeded", status=429)
+
+        try:
+            payload = await request.json()
+        except Exception:
+            return self._error("invalid JSON body", status=400)
+        if not isinstance(payload, dict):
+            return self._error("expected JSON object", status=400)
+
+        # Honeypot: bots fill every field. If "website" is set, silently accept.
+        if payload.get("website"):
+            logger.info("leads honeypot triggered from %s", ip)
+            return self._json({"ok": True})
+
+        meta = {
+            "user_agent": request.headers.get("User-Agent"),
+            "referrer": request.headers.get("Referer"),
+            "ip": ip,
+        }
+        lead, err = build_lead_from_payload(payload, request_meta=meta)
+        if err or lead is None:
+            return self._error(err or "invalid lead", status=400)
+
+        try:
+            stored = await self.leads_pipeline.submit(lead)
+        except Exception as exc:
+            logger.exception("lead submission failed")
+            return self._error(f"submission failed: {exc}", status=500)
+
+        return self._json(
+            {
+                "ok": True,
+                "id": stored.id,
+                "resend": {
+                    "email_sent": bool(stored.resend_email_id),
+                    "contact_synced": bool(stored.resend_contact_id),
+                },
+            },
+            status=201,
+        )
+
+    async def _handle_get_leads(self, request: "web.Request") -> "web.Response":
+        """Authenticated read endpoint for inspecting captured leads."""
+        if self.leads_pipeline is None:
+            return self._error("leads pipeline unavailable", status=503)
+
+        try:
+            limit = max(1, min(int(request.query.get("limit", "100")), 500))
+        except ValueError:
+            limit = 100
+        try:
+            offset = max(0, int(request.query.get("offset", "0")))
+        except ValueError:
+            offset = 0
+
+        rows = await self.leads_pipeline.store.list(limit=limit, offset=offset)
+        total = await self.leads_pipeline.store.count()
+        return self._json(
+            {
+                "leads": rows,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "resend_enabled": self.leads_pipeline.resend_enabled,
+            }
+        )
+
     def create_app(self) -> "web.Application":
         """Create and return the aiohttp Application."""
         if web is None:  # pragma: no cover
@@ -1094,6 +1219,11 @@ class HermesWebAPI:
         # Events (SSE)
         app.router.add_get("/api/events", self._handle_events)
         app.router.add_options("/api/events", self._handle_options)
+
+        # Leads (origami) — landing-page form + admin readout
+        app.router.add_post("/api/leads", self._handle_post_leads)
+        app.router.add_get("/api/leads", self._handle_get_leads)
+        app.router.add_options("/api/leads", self._handle_options)
 
         # Telegram webhook endpoint — receives POST updates from Telegram
         # when TELEGRAM_WEBHOOK_URL is configured.

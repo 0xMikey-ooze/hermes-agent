@@ -518,4 +518,88 @@ document.addEventListener("DOMContentLoaded", () => {
       ticking = true;
     }
   });
+
+  initLeadsForm();
 });
+
+// --- Leads form (codename: origami) ---
+// Posts to /api/leads on the same origin in production. For local
+// development against a separate gateway, set window.HERMES_API_BASE
+// (e.g. via a <meta name="hermes-api-base"> tag) before this script runs.
+function initLeadsForm() {
+  const form = document.getElementById("leads-form");
+  if (!form) return;
+
+  const status = document.getElementById("leads-status");
+  const submit = document.getElementById("leads-submit");
+
+  const setStatus = (msg, kind) => {
+    if (!status) return;
+    status.textContent = msg || "";
+    status.classList.remove("error", "success");
+    if (kind) status.classList.add(kind);
+  };
+
+  const apiBase =
+    window.HERMES_API_BASE ||
+    document
+      .querySelector('meta[name="hermes-api-base"]')
+      ?.getAttribute("content") ||
+    "";
+  const endpoint = `${apiBase.replace(/\/$/, "")}/api/leads`;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const data = new FormData(form);
+    const email = String(data.get("email") || "").trim();
+    if (!email) {
+      setStatus("Please enter your email.", "error");
+      return;
+    }
+
+    const payload = {
+      email,
+      name: String(data.get("name") || "").trim() || undefined,
+      message: String(data.get("message") || "").trim() || undefined,
+      // Honeypot — server treats any non-empty value as spam.
+      website: String(data.get("website") || ""),
+      source: "landing-page",
+      referrer: document.referrer || undefined,
+    };
+
+    submit.disabled = true;
+    setStatus("Sending…");
+
+    try {
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let body = {};
+      try {
+        body = await resp.json();
+      } catch {
+        // non-JSON response — keep `body` empty
+      }
+
+      if (!resp.ok) {
+        const reason =
+          body && body.error
+            ? body.error
+            : `submission failed (${resp.status})`;
+        setStatus(reason, "error");
+        return;
+      }
+
+      form.reset();
+      setStatus("Thanks — we'll be in touch.", "success");
+    } catch (err) {
+      setStatus("Network error. Please try again.", "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}

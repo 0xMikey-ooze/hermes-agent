@@ -917,6 +917,156 @@ strong {
     margin-bottom: 12px;
 }
 
+/* --- Leads / "Stay in the loop" --- */
+.leads {
+    position: relative;
+    z-index: 1;
+    padding: 80px 0 64px;
+    border-top: 1px solid var(--border);
+}
+
+.leads-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+}
+
+.leads-title {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 12px;
+    color: var(--text);
+}
+
+.leads-desc {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    max-width: 32ch;
+}
+
+.leads-form {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: border-color 0.2s var(--ease-out-quad);
+}
+
+.leads-form:focus-within {
+    border-color: var(--border-hover);
+}
+
+.leads-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.leads-field-wide {
+    grid-column: 1 / -1;
+}
+
+.leads-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.leads-form input,
+.leads-form textarea {
+    background: rgba(7, 7, 13, 0.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: normal;
+    transition: border-color 0.15s var(--ease-out-quad),
+        background-color 0.15s var(--ease-out-quad);
+}
+
+.leads-form input:focus,
+.leads-form textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(7, 7, 13, 0.85);
+}
+
+.leads-form textarea {
+    resize: vertical;
+    min-height: 76px;
+    font-family: inherit;
+}
+
+.leads-submit {
+    grid-column: 1 / -1;
+    justify-self: start;
+    background: var(--primary);
+    color: #fff;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 11px 20px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease-out-quad),
+        transform 0.15s var(--ease-out-quad);
+}
+
+.leads-submit:hover:not(:disabled) {
+    background: var(--primary-light);
+}
+
+.leads-submit:disabled {
+    background: var(--primary-dim);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.leads-status {
+    grid-column: 1 / -1;
+    min-height: 1.4em;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.leads-status.error {
+    color: #ff6b6b;
+}
+
+.leads-status.success {
+    color: #5cd1a1;
+}
+
+@media (max-width: 760px) {
+    .leads-inner {
+        grid-template-columns: 1fr;
+        gap: 28px;
+    }
+    .leads-form {
+        grid-template-columns: 1fr;
+        padding: 20px;
+    }
+    .leads-field-wide,
+    .leads-submit,
+    .leads-status {
+        grid-column: 1 / -1;
+    }
+}
+
 /* --- Footer --- */
 .footer {
     position: relative;

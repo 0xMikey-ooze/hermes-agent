@@ -648,6 +648,82 @@ hermes gateway install</code></pre>
       </div>
     </section>
 
+    <section class="leads" id="stay-in-touch">
+      <div class="container leads-inner">
+        <div class="leads-copy">
+          <h2 class="leads-title">Stay in the loop</h2>
+          <p class="leads-desc">
+            Drop your email and we'll let you know when major releases land —
+            new platforms, new skills, breaking changes. No noise.
+          </p>
+        </div>
+        <form
+          class="leads-form"
+          id="leads-form"
+          autocomplete="on"
+          novalidate
+        >
+          <label class="leads-field">
+            <span class="leads-label">Email</span>
+            <input
+              type="email"
+              name="email"
+              id="leads-email"
+              required
+              placeholder="you@example.com"
+              autocomplete="email"
+            />
+          </label>
+          <label class="leads-field">
+            <span class="leads-label">Name (optional)</span>
+            <input
+              type="text"
+              name="name"
+              id="leads-name"
+              placeholder="Your name"
+              autocomplete="name"
+              maxlength="200"
+            />
+          </label>
+          <label class="leads-field leads-field-wide">
+            <span class="leads-label">What are you building? (optional)</span>
+            <textarea
+              name="message"
+              id="leads-message"
+              rows="3"
+              maxlength="2000"
+              placeholder="Tell us a bit about your use case"
+            ></textarea>
+          </label>
+          <!-- Honeypot — bots fill every field; humans don't see this one. -->
+          <input
+            type="text"
+            name="website"
+            id="leads-website"
+            tabindex="-1"
+            autocomplete="off"
+            aria-hidden="true"
+            style="
+              position: absolute;
+              left: -9999px;
+              width: 1px;
+              height: 1px;
+              opacity: 0;
+            "
+          />
+          <button type="submit" class="leads-submit" id="leads-submit">
+            Notify me
+          </button>
+          <p
+            class="leads-status"
+            id="leads-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+        </form>
+      </div>
+    </section>
+
     <footer class="footer">
       <div class="container">
         <p class="footer-copy">
